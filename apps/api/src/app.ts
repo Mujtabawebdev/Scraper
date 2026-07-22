@@ -7,6 +7,7 @@ import { pinoHttp } from "pino-http";
 import { logger } from "./common/logger/logger.js";
 import { env } from "./config/env.js";
 import { healthRouter } from "./modules/health/health.routes.js";
+import { scrapingJobRouter } from "./modules/scraping-jobs/scraping-job.routes.js";
 
 export const app = express();
 
@@ -26,6 +27,7 @@ app.get("/", (_request, response) => {
 });
 
 app.use("/api/v1/health", healthRouter);
+app.use("/api/v1/scraping-jobs", scrapingJobRouter);
 
 app.use((_request, response) => {
   response.status(404).json({

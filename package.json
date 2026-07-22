@@ -8,6 +8,8 @@
     "dev:api": "npm run dev --workspace=@lead-saas/api",
     "dev:worker": "npm run dev --workspace=@lead-saas/worker",
     "dev:web": "npm run dev --workspace=@lead-saas/web",
+    "docker:up": "docker compose up -d postgres redis",
+    "docker:down": "docker compose down",
     "build": "npm run build --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "test": "npm run test --workspaces --if-present"

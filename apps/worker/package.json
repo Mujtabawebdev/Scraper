@@ -1,0 +1,36 @@
+{
+  "name": "@lead-saas/worker",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Background job worker for US Business Lead SaaS",
+  "type": "module",
+  "main": "dist/index.js",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "typecheck": "tsc --noEmit",
+    "test": "echo \"Tests will be added later\""
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@lead-saas/api": "1.0.0",
+    "@lead-saas/shared-types": "1.0.0",
+    "@prisma/adapter-pg": "^7.9.0",
+    "@prisma/client": "^7.9.0",
+    "bullmq": "^5.80.10",
+    "dotenv": "^17.4.2",
+    "ioredis": "^5.11.1",
+    "pg": "^8.22.0",
+    "pino": "^10.3.1",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "^26.1.1",
+    "@types/pg": "^8.20.0",
+    "tsx": "^4.23.1",
+    "typescript": "^7.0.2"
+  }
+}

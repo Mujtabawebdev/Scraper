@@ -5,6 +5,13 @@
   "description": "REST API for US Business Lead SaaS",
   "type": "module",
   "main": "dist/server.js",
+  "exports": {
+    ".": "./dist/server.js",
+    "./prisma-client": {
+      "types": "./src/generated/prisma/client.ts",
+      "import": "./dist/generated/prisma/client.js"
+    }
+  },
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "build": "tsc",
@@ -17,19 +24,23 @@
     "prisma:studio": "prisma studio",
     "db:migrate:dev": "prisma migrate dev",
     "db:migrate:deploy": "prisma migrate deploy",
-    "db:check": "tsx src/scripts/check-database.ts"
+    "db:check": "tsx src/scripts/check-database.ts",
+    "db:seed": "tsx prisma/seed.ts"
   },
   "engines": {
     "node": ">=20"
   },
   "dependencies": {
+    "@lead-saas/shared-types": "^1.0.0",
     "@prisma/adapter-pg": "^7.9.0",
     "@prisma/client": "^7.9.0",
+    "bullmq": "^5.80.10",
     "cookie-parser": "latest",
     "cors": "latest",
     "dotenv": "latest",
     "express": "latest",
     "helmet": "latest",
+    "ioredis": "^5.11.1",
     "pg": "^8.22.0",
     "pino": "latest",
     "pino-http": "latest",

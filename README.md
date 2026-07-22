@@ -20,11 +20,11 @@ A production-oriented SaaS for collecting and managing publicly available U.S. b
 
 ## Local Development
 
-Node.js 20 or newer, Docker, and Docker Compose are required. Create the ignored local environment file before starting services:
+Node.js 20 or newer, Docker, and Docker Compose are required. PostgreSQL and Redis run locally through Compose. Create the ignored local environment file before starting services:
 
 ```powershell
 Copy-Item .env.example .env
-docker compose up -d postgres
+docker compose up -d postgres redis
 docker compose ps
 ```
 
@@ -36,6 +36,15 @@ npm run typecheck
 npm run build
 npm run dev:api
 ```
+
+In a second terminal, start the BullMQ worker:
+
+```powershell
+npm run db:seed --workspace=@lead-saas/api
+npm run dev:worker
+```
+
+The local worker concurrency is controlled by `WORKER_CONCURRENCY` and defaults to `2`.
 
 The API runs at `http://localhost:5000`; health is at `http://localhost:5000/api/v1/health`. Copy `.env.example` to `.env` only when local overrides are needed. Never commit real secrets.
 
@@ -51,6 +60,26 @@ npm run prisma:studio --workspace=@lead-saas/api
 ```
 
 Use `prisma migrate dev` only in development. Production environments apply already reviewed migrations with `prisma migrate deploy`. Detailed architecture and workflow notes are in `docs/database.md`.
+
+## Mock Queue Workflow
+
+With the API and worker running, enqueue a mock job without making external requests:
+
+```powershell
+$body = @{
+  country = "United States"
+  state = "Texas"
+  city = "Houston"
+  category = "Roofing"
+  searchQuery = "roofing contractors in Houston Texas"
+  requestedLimit = 10
+} | ConvertTo-Json
+
+$created = Invoke-RestMethod -Method Post -Uri http://localhost:5000/api/v1/scraping-jobs/test -ContentType "application/json" -Body $body
+Invoke-RestMethod -Uri "http://localhost:5000/api/v1/scraping-jobs/$($created.data.scrapingJobId)"
+```
+
+Jobs receive three attempts with exponential backoff starting at five seconds. Completed and failed jobs retain bounded history for local diagnostics. Stop local services with `docker compose down`; named volumes preserve PostgreSQL and Redis data. See `docs/queue.md` for architecture and consistency details.
 
 ## Compliance Notice
 
