@@ -1,0 +1,161 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserRole {
+  USER
+  ADMIN
+  SUPER_ADMIN
+}
+
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+  DISABLED
+}
+
+enum JobStatus {
+  PENDING
+  QUEUED
+  RUNNING
+  PAUSED
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+enum LeadStatus {
+  NEW
+  VERIFIED
+  INVALID
+  DUPLICATE
+  SUPPRESSED
+}
+
+enum PhoneType {
+  LANDLINE
+  MOBILE
+  VOIP
+  TOLL_FREE
+  UNKNOWN
+}
+
+enum SourceType {
+  GOVERNMENT_DIRECTORY
+  BUSINESS_DIRECTORY
+  COMPANY_WEBSITE
+  LICENSED_API
+  USER_IMPORT
+  OTHER
+}
+
+model User {
+  id           String        @id @default(uuid()) @db.Uuid
+  email        String        @unique @db.VarChar(320)
+  passwordHash String        @map("password_hash") @db.VarChar(255)
+  fullName     String        @map("full_name") @db.VarChar(150)
+  role         UserRole      @default(USER)
+  status       UserStatus    @default(ACTIVE)
+  createdAt    DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt    DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
+  lastLoginAt  DateTime?     @map("last_login_at") @db.Timestamptz(3)
+  scrapingJobs ScrapingJob[]
+  auditLogs    AuditLog[]
+
+  @@map("users")
+}
+
+model ScrapingJob {
+  id             String    @id @default(uuid()) @db.Uuid
+  name           String    @db.VarChar(150)
+  country        String    @default("United States") @db.VarChar(100)
+  state          String?   @db.VarChar(100)
+  city           String?   @db.VarChar(120)
+  category       String?   @db.VarChar(150)
+  searchQuery    String?   @map("search_query") @db.VarChar(500)
+  requestedLimit Int       @map("requested_limit")
+  collectedCount Int       @default(0) @map("collected_count")
+  processedCount Int       @default(0) @map("processed_count")
+  failedCount    Int       @default(0) @map("failed_count")
+  progress       Int       @default(0)
+  status         JobStatus @default(PENDING)
+  startedAt      DateTime? @map("started_at") @db.Timestamptz(3)
+  completedAt    DateTime? @map("completed_at") @db.Timestamptz(3)
+  failureReason  String?   @map("failure_reason") @db.Text
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  createdById    String    @map("created_by_id") @db.Uuid
+  createdBy      User      @relation(fields: [createdById], references: [id], onDelete: Restrict)
+  leads          Lead[]
+
+  @@index([status])
+  @@index([createdById])
+  @@index([createdAt])
+  @@map("scraping_jobs")
+}
+
+model Lead {
+  id                      String      @id @default(uuid()) @db.Uuid
+  businessName            String      @map("business_name") @db.VarChar(255)
+  phoneRaw                String?     @map("phone_raw") @db.VarChar(50)
+  phoneNormalized         String?     @map("phone_normalized") @db.VarChar(20)
+  phoneType               PhoneType   @default(UNKNOWN) @map("phone_type")
+  email                   String?     @db.VarChar(320)
+  website                 String?     @db.VarChar(2048)
+  domain                  String?     @db.VarChar(253)
+  addressLine1            String?     @map("address_line_1") @db.VarChar(255)
+  addressLine2            String?     @map("address_line_2") @db.VarChar(255)
+  city                    String?     @db.VarChar(120)
+  state                   String?     @db.VarChar(100)
+  postalCode              String?     @map("postal_code") @db.VarChar(20)
+  country                 String      @default("United States") @db.VarChar(100)
+  category                String?     @db.VarChar(150)
+  sourceType              SourceType  @map("source_type")
+  sourceName              String      @map("source_name") @db.VarChar(150)
+  sourceUrl               String      @map("source_url") @db.VarChar(2048)
+  sourceExternalId        String?     @map("source_external_id") @db.VarChar(255)
+  status                  LeadStatus  @default(NEW)
+  isPublicBusinessContact Boolean     @default(true) @map("is_public_business_contact")
+  collectedAt             DateTime    @default(now()) @map("collected_at") @db.Timestamptz(3)
+  lastVerifiedAt          DateTime?   @map("last_verified_at") @db.Timestamptz(3)
+  createdAt               DateTime    @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt               DateTime    @updatedAt @map("updated_at") @db.Timestamptz(3)
+  scrapingJobId           String      @map("scraping_job_id") @db.Uuid
+  scrapingJob             ScrapingJob @relation(fields: [scrapingJobId], references: [id], onDelete: Restrict)
+
+  @@index([phoneNormalized])
+  @@index([domain])
+  @@index([email])
+  @@index([city, state])
+  @@index([category])
+  @@index([status])
+  @@index([sourceType])
+  @@index([scrapingJobId])
+  @@index([collectedAt])
+  @@index([sourceExternalId])
+  @@map("leads")
+}
+
+model AuditLog {
+  id         String   @id @default(uuid()) @db.Uuid
+  action     String   @db.VarChar(100)
+  entityType String   @map("entity_type") @db.VarChar(100)
+  entityId   String?  @map("entity_id") @db.VarChar(255)
+  metadata   Json?    @db.JsonB
+  ipAddress  String?  @map("ip_address") @db.Inet
+  userAgent  String?  @map("user_agent") @db.Text
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  actorId    String?  @map("actor_id") @db.Uuid
+  actor      User?    @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([actorId])
+  @@index([entityType])
+  @@index([entityId])
+  @@index([createdAt])
+  @@map("audit_logs")
+}

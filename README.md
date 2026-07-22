@@ -20,16 +20,37 @@ A production-oriented SaaS for collecting and managing publicly available U.S. b
 
 ## Local Development
 
-Node.js 20 or newer is required.
+Node.js 20 or newer, Docker, and Docker Compose are required. Create the ignored local environment file before starting services:
+
+```powershell
+Copy-Item .env.example .env
+docker compose up -d postgres
+docker compose ps
+```
 
 ```powershell
 npm install
+npm run prisma:generate --workspace=@lead-saas/api
+npm run db:check --workspace=@lead-saas/api
 npm run typecheck
 npm run build
 npm run dev:api
 ```
 
 The API runs at `http://localhost:5000`; health is at `http://localhost:5000/api/v1/health`. Copy `.env.example` to `.env` only when local overrides are needed. Never commit real secrets.
+
+## Prisma And Migrations
+
+```powershell
+npm run prisma:format --workspace=@lead-saas/api
+npm run prisma:validate --workspace=@lead-saas/api
+npm run prisma:generate --workspace=@lead-saas/api
+npm run db:migrate:dev --workspace=@lead-saas/api -- --name migration_name
+npm run db:migrate:deploy --workspace=@lead-saas/api
+npm run prisma:studio --workspace=@lead-saas/api
+```
+
+Use `prisma migrate dev` only in development. Production environments apply already reviewed migrations with `prisma migrate deploy`. Detailed architecture and workflow notes are in `docs/database.md`.
 
 ## Compliance Notice
 

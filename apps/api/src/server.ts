@@ -3,28 +3,43 @@ import type { Server } from "node:http";
 import { app } from "./app.js";
 import { logger } from "./common/logger/logger.js";
 import { env } from "./config/env.js";
+import { disconnectDatabase } from "./infrastructure/database/prisma.js";
 
 let server: Server | undefined;
 let isShuttingDown = false;
 
-const shutdown = (signal: NodeJS.Signals): void => {
+const shutdown = async (signal: NodeJS.Signals): Promise<void> => {
   if (isShuttingDown) return;
   isShuttingDown = true;
   logger.info({ signal }, "Shutdown requested");
 
-  if (!server) process.exit(0);
-  server.close((error) => {
-    if (error) {
-      logger.error({ err: error }, "Failed to close HTTP server");
-      process.exit(1);
+  let exitCode = 0;
+
+  try {
+    if (server) {
+      await new Promise<void>((resolve, reject) => {
+        server?.close((error) => (error ? reject(error) : resolve()));
+      });
+      logger.info("HTTP server closed");
     }
-    logger.info("HTTP server closed");
-    process.exit(0);
-  });
+  } catch (error: unknown) {
+    exitCode = 1;
+    logger.error({ err: error }, "Failed to close HTTP server");
+  }
+
+  try {
+    await disconnectDatabase();
+    logger.info("Database resources disconnected");
+  } catch (error: unknown) {
+    exitCode = 1;
+    logger.error({ err: error }, "Failed to disconnect database resources");
+  }
+
+  process.exit(exitCode);
 };
 
-process.once("SIGINT", shutdown);
-process.once("SIGTERM", shutdown);
+process.once("SIGINT", (signal) => void shutdown(signal));
+process.once("SIGTERM", (signal) => void shutdown(signal));
 process.on("uncaughtException", (error) => {
   logger.fatal({ err: error }, "Uncaught exception");
   process.exit(1);

@@ -1,1 +1,24 @@
-services: {}
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: lead-saas-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: lead_user
+      POSTGRES_PASSWORD: lead_password
+      POSTGRES_DB: us_business_leads
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready -U lead_user -d us_business_leads
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+volumes:
+  postgres_data:

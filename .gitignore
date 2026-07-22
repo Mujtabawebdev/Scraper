@@ -29,3 +29,5 @@ temp/
 .DS_Store
 Thumbs.db
 Desktop.ini
+
+apps/api/src/generated/
