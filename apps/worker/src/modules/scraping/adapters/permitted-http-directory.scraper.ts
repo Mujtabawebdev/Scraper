@@ -7,6 +7,7 @@ import type { ScrapedBusiness, ScraperResult } from "../contracts/scraped-busine
 import { SourceNotPermittedError } from "../errors/source-not-permitted.error.js";
 import { HttpFetchService } from "../services/http-fetch.service.js";
 import { RobotsPolicyService } from "../services/robots-policy.service.js";
+import { recordRobotsCheck } from "../services/source-policy.service.js";
 
 const clean = (value: string): string | undefined => value.trim() || undefined;
 
@@ -29,8 +30,12 @@ export class PermittedHttpDirectoryScraper implements BusinessScraper {
   }
 
   async scrape(input: ScrapeInput): Promise<ScraperResult> {
+    if (input.requestPolicy) {
+      this.http.setRateLimitPolicy(input.requestPolicy);
+    }
     const sourceUrl = new URL(this.baseUrl.pathname || "/", this.baseUrl);
     await this.robots.assertAllowed(sourceUrl);
+    await recordRobotsCheck(this.sourceKey);
     const html = await this.http.fetchText(sourceUrl, /^text\/html(?:;|$)/i);
     const $ = cheerio.load(html);
     const records: ScrapedBusiness[] = [];

@@ -18,6 +18,7 @@ import {
   scrapingJobNotRetryableError,
   sourceNotPermittedError,
 } from "./scraping-job.errors.js";
+import { assertAutomatedAccessAllowed } from "../admin/source-policy.service.js";
 import {
   createPaginationMetadata,
   mapScrapingJobDetail,
@@ -54,7 +55,10 @@ const isSupportedSource = (source: string): source is ScrapingJobQueueSource =>
   source === "fixture-business-directory" ||
   source === "permitted-http-directory";
 
-const assertSourceIsEnabled = (source: ScrapingJobQueueSource): void => {
+const assertSourceIsEnabled = async (
+  source: ScrapingJobQueueSource,
+): Promise<void> => {
+  await assertAutomatedAccessAllowed(source);
   if (
     source === "permitted-http-directory" &&
     (!env.SCRAPING_EXTERNAL_SOURCE_ENABLED || !env.SCRAPING_APPROVED_BASE_URL)
@@ -80,7 +84,7 @@ const parseQueueLocation = (location: string): QueueLocation => {
 const enqueueNewScrapingJob = async (
   data: NewScrapingJobData,
 ): Promise<{ job: ScrapingJobSummary; queueJobId: string }> => {
-  assertSourceIsEnabled(data.source);
+  await assertSourceIsEnabled(data.source);
   const queueLocation = {
     ...parseQueueLocation(data.location),
     ...(data.city ? { city: data.city } : {}),

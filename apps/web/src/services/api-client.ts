@@ -27,6 +27,21 @@ export const apiErrorCodes = [
   "QUEUE_UNAVAILABLE",
   "LEAD_NOT_FOUND",
   "EXPORT_LIMIT_EXCEEDED",
+  "ADMIN_ACCESS_REQUIRED",
+  "SUPER_ADMIN_ACCESS_REQUIRED",
+  "USER_NOT_FOUND",
+  "INVALID_USER_STATUS_TRANSITION",
+  "CANNOT_MODIFY_OWN_ROLE",
+  "CANNOT_MODIFY_SUPER_ADMIN",
+  "FINAL_SUPER_ADMIN_REQUIRED",
+  "ADMIN_JOB_NOT_FOUND",
+  "JOB_NOT_CANCELLABLE",
+  "SOURCE_NOT_FOUND",
+  "SOURCE_NOT_APPROVED",
+  "SOURCE_REVIEW_REQUIRED",
+  "SOURCE_BLOCKED",
+  "AUTOMATED_ACCESS_NOT_ALLOWED",
+  "SOURCE_POLICY_REQUIREMENTS_NOT_MET",
   "NETWORK_ERROR",
   "INTERNAL_SERVER_ERROR",
 ] as const;
@@ -105,6 +120,26 @@ const safeMessages: Readonly<Record<string, string>> = {
   LEAD_NOT_FOUND: "This lead was not found or is no longer available.",
   EXPORT_LIMIT_EXCEEDED:
     "This export is too large. Narrow the filters and try again.",
+  ADMIN_ACCESS_REQUIRED: "Administrator access is required.",
+  SUPER_ADMIN_ACCESS_REQUIRED: "Super administrator access is required.",
+  USER_NOT_FOUND: "This user was not found.",
+  INVALID_USER_STATUS_TRANSITION:
+    "This account status change is not allowed.",
+  CANNOT_MODIFY_OWN_ROLE: "You cannot modify your own role.",
+  CANNOT_MODIFY_SUPER_ADMIN:
+    "This administrator cannot modify a super administrator.",
+  FINAL_SUPER_ADMIN_REQUIRED:
+    "At least one active super administrator must remain.",
+  ADMIN_JOB_NOT_FOUND: "This scraping job was not found.",
+  JOB_NOT_CANCELLABLE: "This job can no longer be cancelled.",
+  SOURCE_NOT_FOUND: "This approved source was not found.",
+  SOURCE_NOT_APPROVED: "This source has not been approved.",
+  SOURCE_REVIEW_REQUIRED: "This source requires compliance review.",
+  SOURCE_BLOCKED: "This source is blocked.",
+  AUTOMATED_ACCESS_NOT_ALLOWED:
+    "Automated access is not permitted for this source.",
+  SOURCE_POLICY_REQUIREMENTS_NOT_MET:
+    "Complete all policy review requirements before approval or enablement.",
   NETWORK_ERROR: "Unable to reach the server. Check your connection and try again.",
   INTERNAL_SERVER_ERROR: fallbackErrorMessage,
 };

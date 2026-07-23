@@ -8,6 +8,7 @@ import { errorHandler } from "./common/middleware/error.middleware.js";
 import { logger, serializeHttpResponseForLog } from "./common/logger/logger.js";
 import { env } from "./config/env.js";
 import { authRouter } from "./modules/auth/auth.routes.js";
+import { adminRouter } from "./modules/admin/admin.routes.js";
 import { dashboardRouter } from "./modules/dashboard/dashboard.routes.js";
 import { healthRouter } from "./modules/health/health.routes.js";
 import { scrapingJobRouter } from "./modules/scraping-jobs/scraping-job.routes.js";
@@ -43,6 +44,7 @@ app.get("/", (_request, response) => {
 
 app.use("/api/v1/health", healthRouter);
 app.use("/api/v1/auth", authRouter);
+app.use("/api/v1/admin", adminRouter);
 app.use("/api/v1/scraping-jobs", scrapingJobRouter);
 app.use("/api/v1/leads", leadRouter);
 app.use("/api/v1/dashboard", dashboardRouter);

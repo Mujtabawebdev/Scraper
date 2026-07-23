@@ -19,7 +19,9 @@ const seed = async (): Promise<void> => {
       status: "DISABLED",
     },
   });
-  console.log("Development system user is ready.");
+  console.log(
+    "Disabled non-login system user is ready; promote a real registered user through a controlled database operation for the first SUPER_ADMIN.",
+  );
 };
 
 try {

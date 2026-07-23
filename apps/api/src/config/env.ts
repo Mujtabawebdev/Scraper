@@ -63,6 +63,7 @@ const envSchema = z
     ),
     QUEUE_PREFIX: z.string().trim().min(1).default("lead-saas"),
     SCRAPING_QUEUE_NAME: z.string().trim().min(1).default("scraping-jobs"),
+    SCRAPING_FIXTURE_SOURCE_ENABLED: z.stringbool().default(false),
     SCRAPING_EXTERNAL_SOURCE_ENABLED: z.stringbool().default(false),
     SCRAPING_APPROVED_BASE_URL: z.string().trim().optional(),
     JWT_ACCESS_SECRET: z.string().min(32),

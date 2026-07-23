@@ -4,6 +4,7 @@ import { createBrowserRouter } from "react-router-dom";
 import { ProtectedRoute } from "../routes/protected-route";
 import { PublicOnlyRoute } from "../routes/public-only-route";
 import { RootRoute } from "../routes/root-route";
+import { RoleRoute } from "../routes/role-route";
 
 const LoginPage = lazy(() =>
   import("../features/auth/pages/login-page").then((module) => ({
@@ -23,6 +24,46 @@ const AuthLayout = lazy(() =>
 const DashboardLayout = lazy(() =>
   import("../layouts/dashboard-layout").then((module) => ({
     default: module.DashboardLayout,
+  })),
+);
+const AdminLayout = lazy(() =>
+  import("../layouts/admin-layout").then((module) => ({
+    default: module.AdminLayout,
+  })),
+);
+const AdminOverviewPage = lazy(() =>
+  import("../features/admin/pages/admin-overview-page").then((module) => ({
+    default: module.AdminOverviewPage,
+  })),
+);
+const AdminUsersPage = lazy(() =>
+  import("../features/admin/pages/admin-users-page").then((module) => ({
+    default: module.AdminUsersPage,
+  })),
+);
+const AdminUserDetailPage = lazy(() =>
+  import("../features/admin/pages/admin-user-detail-page").then((module) => ({
+    default: module.AdminUserDetailPage,
+  })),
+);
+const AdminJobsPage = lazy(() =>
+  import("../features/admin/pages/admin-jobs-page").then((module) => ({
+    default: module.AdminJobsPage,
+  })),
+);
+const AdminJobDetailPage = lazy(() =>
+  import("../features/admin/pages/admin-job-detail-page").then((module) => ({
+    default: module.AdminJobDetailPage,
+  })),
+);
+const AdminAuditLogsPage = lazy(() =>
+  import("../features/admin/pages/admin-audit-logs-page").then((module) => ({
+    default: module.AdminAuditLogsPage,
+  })),
+);
+const AdminSourcesPage = lazy(() =>
+  import("../features/admin/pages/admin-sources-page").then((module) => ({
+    default: module.AdminSourcesPage,
   })),
 );
 const DashboardPage = lazy(() =>
@@ -136,6 +177,24 @@ export const router = createBrowserRouter([
                 title="Settings"
               />
             ),
+          },
+        ],
+      },
+      {
+        element: <RoleRoute allowedRoles={["ADMIN", "SUPER_ADMIN"]} />,
+        children: [
+          {
+            path: "/admin",
+            element: <AdminLayout />,
+            children: [
+              { index: true, element: <AdminOverviewPage /> },
+              { path: "users", element: <AdminUsersPage /> },
+              { path: "users/:userId", element: <AdminUserDetailPage /> },
+              { path: "jobs", element: <AdminJobsPage /> },
+              { path: "jobs/:jobId", element: <AdminJobDetailPage /> },
+              { path: "audit-logs", element: <AdminAuditLogsPage /> },
+              { path: "sources", element: <AdminSourcesPage /> },
+            ],
           },
         ],
       },

@@ -4,6 +4,7 @@ import {
   LogOut,
   Menu,
   Settings,
+  ShieldCheck,
   UsersRound,
   X,
   type LucideIcon,
@@ -31,10 +32,22 @@ const navigationItems: readonly NavigationItem[] = [
   { icon: Settings, label: "Settings", to: "/dashboard/settings" },
 ];
 
-function DashboardNavigation({ onNavigate }: { onNavigate?: () => void }) {
+function DashboardNavigation({
+  onNavigate,
+  showAdmin = false,
+}: {
+  onNavigate?: () => void;
+  showAdmin?: boolean;
+}) {
+  const items = showAdmin
+    ? [
+        ...navigationItems,
+        { icon: ShieldCheck, label: "Administration", to: "/admin" },
+      ]
+    : navigationItems;
   return (
     <nav aria-label="Dashboard navigation" className="space-y-1 px-3">
-      {navigationItems.map(({ icon: Icon, label, to }) => (
+      {items.map(({ icon: Icon, label, to }) => (
         <NavLink
           className={({ isActive }) =>
             [
@@ -150,6 +163,7 @@ export function DashboardLayout() {
         <div className="flex-1 overflow-y-auto py-5">
           <DashboardNavigation
             onNavigate={closeMobileNavigation}
+            showAdmin={user?.role === "ADMIN" || user?.role === "SUPER_ADMIN"}
           />
         </div>
       </aside>
@@ -159,7 +173,9 @@ export function DashboardLayout() {
           <AppLogo />
         </div>
         <div className="flex-1 overflow-y-auto py-5">
-          <DashboardNavigation />
+          <DashboardNavigation
+            showAdmin={user?.role === "ADMIN" || user?.role === "SUPER_ADMIN"}
+          />
         </div>
         <div className="border-t border-slate-100 p-4">
           <div className="flex items-center gap-3 rounded-xl bg-slate-50 p-3">

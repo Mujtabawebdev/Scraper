@@ -15,6 +15,7 @@ const envSchema = z.object({
   QUEUE_PREFIX: z.string().trim().min(1).default("lead-saas"),
   SCRAPING_QUEUE_NAME: z.string().trim().min(1).default("scraping-jobs"),
   WORKER_CONCURRENCY: z.coerce.number().int().min(1).max(20).default(2),
+  SCRAPING_FIXTURE_SOURCE_ENABLED: z.stringbool().default(false),
   SCRAPING_EXTERNAL_SOURCE_ENABLED: z.stringbool().default(false),
   SCRAPING_APPROVED_BASE_URL: z.string().trim().optional(),
   SCRAPING_USER_AGENT: z.string().trim().min(1).default("LeadSaaSResearchBot/0.1"),

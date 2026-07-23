@@ -9,6 +9,11 @@ import { type Job, UnrecoverableError } from "bullmq";
 import { prisma } from "../../infrastructure/database/prisma.js";
 import { ScraperError } from "../../modules/scraping/errors/scraper.error.js";
 import { runScraping } from "../../modules/scraping/services/scraping.service.js";
+import {
+  assertAutomatedAccessAllowed,
+  markSourceBlocked,
+  markSourceReviewRequired,
+} from "../../modules/scraping/services/source-policy.service.js";
 
 type JobCounts = Pick<
   ScrapingJobQueueResult,
@@ -111,6 +116,7 @@ export const processScrapingJob = async (
   job: Job<ScrapingJobQueueData, ScrapingJobQueueResult, ScrapingJobName>,
 ): Promise<ScrapingJobQueueResult> => {
   let ownerVerified = false;
+  let activeSourceKey: ScrapingSourceKey | undefined;
 
   try {
     const databaseJob = await prisma.scrapingJob.findUnique({
@@ -183,6 +189,7 @@ export const processScrapingJob = async (
     const effectivePublicSource = isLegacyPayload
       ? derivedPublicSource
       : runtimePublicSource;
+    activeSourceKey = runtimeSourceKey;
 
     if (!isLegacyPayload && databaseJob.source !== effectivePublicSource) {
       throw new UnrecoverableError("SCRAPING_JOB_SOURCE_MISMATCH");
@@ -243,6 +250,14 @@ export const processScrapingJob = async (
       databaseJob.requestedLimit < 1
     ) {
       throw new UnrecoverableError("SCRAPING_JOB_CONFIGURATION_INVALID");
+    }
+
+    let sourcePolicy;
+    try {
+      sourcePolicy = await assertAutomatedAccessAllowed(runtimeSourceKey);
+    } catch (error: unknown) {
+      const code = error instanceof ScraperError ? error.code : "SOURCE_POLICY_FAILED";
+      throw new UnrecoverableError(code);
     }
 
     let lastProgress = Math.min(Math.max(databaseJob.progressPercentage, 5), 99);
@@ -311,6 +326,10 @@ export const processScrapingJob = async (
         country: authoritativeCountry,
         searchQuery: authoritativeSearchQuery,
         requestedLimit: Math.min(databaseJob.requestedLimit, 100),
+        requestPolicy: {
+          requestsPerMinute: sourcePolicy.requestsPerMinute,
+          maxConcurrency: sourcePolicy.maxConcurrency,
+        },
         ...(databaseJob.state ? { state: databaseJob.state } : {}),
         ...(databaseJob.city ? { city: databaseJob.city } : {}),
         ...(databaseJob.category ? { category: databaseJob.category } : {}),
@@ -382,7 +401,32 @@ export const processScrapingJob = async (
     await job.updateProgress(100);
     return toQueueResult(databaseJob.id, finalCounts, completedAt);
   } catch (error: unknown) {
-    if (ownerVerified && isFinalAttempt(job, error)) {
+    let finalError = error;
+    if (activeSourceKey && error instanceof ScraperError) {
+      const blockedCodes = new Set([
+        "ROBOTS_DISALLOWED",
+        "SOURCE_AUTHORIZATION_DENIED",
+        "AUTOMATION_PROHIBITED",
+      ]);
+      const reviewCodes = new Set([
+        "CAPTCHA_DETECTED",
+        "LOGIN_WALL",
+        "CONSENT_WALL",
+        "RATE_LIMIT_REJECTED",
+      ]);
+      if (blockedCodes.has(error.code)) {
+        await markSourceBlocked(activeSourceKey, error.message).catch(
+          () => undefined,
+        );
+        finalError = new UnrecoverableError(error.code);
+      } else if (reviewCodes.has(error.code)) {
+        await markSourceReviewRequired(activeSourceKey, error.message).catch(
+          () => undefined,
+        );
+        finalError = new UnrecoverableError(error.code);
+      }
+    }
+    if (ownerVerified && isFinalAttempt(job, finalError)) {
       await prisma.scrapingJob
         .updateMany({
           where: {
@@ -398,6 +442,6 @@ export const processScrapingJob = async (
         })
         .catch(() => undefined);
     }
-    throw error;
+    throw finalError;
   }
 };

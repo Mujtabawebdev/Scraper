@@ -10,6 +10,9 @@ const processorMocks = vi.hoisted(() => ({
   findUnique: vi.fn(),
   updateMany: vi.fn(),
   runScraping: vi.fn(),
+  assertAutomatedAccessAllowed: vi.fn(),
+  markSourceBlocked: vi.fn(),
+  markSourceReviewRequired: vi.fn(),
 }));
 
 vi.mock("../../infrastructure/database/prisma.js", () => ({
@@ -23,6 +26,11 @@ vi.mock("../../infrastructure/database/prisma.js", () => ({
 
 vi.mock("../../modules/scraping/services/scraping.service.js", () => ({
   runScraping: processorMocks.runScraping,
+}));
+vi.mock("../../modules/scraping/services/source-policy.service.js", () => ({
+  assertAutomatedAccessAllowed: processorMocks.assertAutomatedAccessAllowed,
+  markSourceBlocked: processorMocks.markSourceBlocked,
+  markSourceReviewRequired: processorMocks.markSourceReviewRequired,
 }));
 
 import { processScrapingJob } from "./scraping.processor.js";
@@ -106,6 +114,12 @@ describe("processScrapingJob", () => {
     processorMocks.findUnique.mockResolvedValue(databaseJob);
     processorMocks.updateMany.mockResolvedValue({ count: 1 });
     processorMocks.runScraping.mockResolvedValue(completedResult);
+    processorMocks.assertAutomatedAccessAllowed.mockResolvedValue({
+      sourceKey: "fixture-business-directory",
+      baseUrl: null,
+      requestsPerMinute: 120,
+      maxConcurrency: 1,
+    });
   });
 
   it("executes only authoritative database scraping parameters", async () => {
@@ -123,6 +137,10 @@ describe("processScrapingJob", () => {
         category: "Plumbing",
         searchQuery: "authoritative database query",
         requestedLimit: 17,
+        requestPolicy: {
+          requestsPerMinute: 120,
+          maxConcurrency: 1,
+        },
       },
       expect.objectContaining({ userId }),
     );

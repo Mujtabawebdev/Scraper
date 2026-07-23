@@ -11,10 +11,11 @@ A production-oriented SaaS for collecting and managing publicly available U.S. b
 
 ## Monorepo Applications
 
-- `apps/api`: Express REST API with authentication, leads, scraping jobs, health checks, and production middleware.
-- `apps/worker`: BullMQ worker for permitted, user-owned scraping jobs.
+- `apps/api`: Express REST API with authentication, tenant data, administrator
+  operations, source governance, health checks, and production middleware.
+- `apps/worker`: BullMQ worker for permitted, policy-approved scraping jobs.
 - `apps/web`: React application with authentication, job management, lead
-  exploration, and an owned dashboard.
+  exploration, an owned dashboard, and a role-gated administrator area.
 - `packages/shared-types`: Non-Prisma API DTOs plus internal typed queue
   contracts.
 - `packages/validation`: Future shared validation schemas.
@@ -140,6 +141,35 @@ architecture and security decisions.
 | `/dashboard/settings` | Authenticated users | Account/session actions and later-phase placeholder |
 | `/unauthorized` | Public | Insufficient-role explanation |
 | `*` | Public | Not-found page |
+
+### Administrator Routes
+
+`ADMIN` and `SUPER_ADMIN` accounts receive a visible Administration link.
+Frontend route guards improve navigation, while every `/api/v1/admin` request
+is independently authenticated and authorized by the API.
+
+| Route | Access | Purpose |
+| --- | --- | --- |
+| `/admin` | ADMIN, SUPER_ADMIN | Operational summary |
+| `/admin/users` | ADMIN, SUPER_ADMIN | Paginated account management |
+| `/admin/users/:userId` | ADMIN, SUPER_ADMIN | Safe user detail and audit activity |
+| `/admin/jobs` | ADMIN, SUPER_ADMIN | Cross-account job monitoring |
+| `/admin/jobs/:jobId` | ADMIN, SUPER_ADMIN | Job detail and safe failure context |
+| `/admin/audit-logs` | ADMIN, SUPER_ADMIN | Redacted audit history |
+| `/admin/sources` | ADMIN view; SUPER_ADMIN mutation | Approved-source governance |
+
+Status changes are atomic and audited. Suspending or disabling an account
+revokes its active refresh sessions and cooperatively cancels active jobs while
+preserving collected leads. Role changes always revoke sessions and require a
+`SUPER_ADMIN`; self-role edits and removal of the final active super
+administrator are blocked.
+
+Approved sources are deny-by-default. A new source is `REVIEW_REQUIRED`,
+disabled, and disallows automation. Approval or enablement requires recorded
+terms review, a robots-policy check where applicable, approved automation, and
+credentials in environment/secret management when required. API keys are
+never stored in source records or returned to the browser. See
+`docs/admin-dashboard.md` and `docs/source-policy.md`.
 
 ### Integrated Local Authentication Check
 
@@ -368,11 +398,13 @@ at five seconds. Completed and failed queue history remains bounded for local
 diagnostics. Stop local services with `docker compose down`; named volumes
 preserve PostgreSQL and Redis data. See `docs/queue.md` for consistency details.
 
-The Phase 7 form accepts only the compiled, controlled source list and at most
-100 records. `fixture-business-directory` maps to fictional local HTML.
+The job form accepts only the compiled, controlled source list and at most 100
+records. `fixture-business-directory` maps to fictional local HTML and now
+requires `NODE_ENV=test` or the explicit local-only
+`SCRAPING_FIXTURE_SOURCE_ENABLED=true` flag.
 `permitted-http-directory` remains disabled unless an administrator explicitly
-enables it and configures its fixed approved base URL after reviewing source
-terms; users can never submit a URL.
+approves and enables its database source policy and configures its fixed
+approved base URL after reviewing source terms; users can never submit a URL.
 Public visibility alone is not permission to scrape. The project never
 bypasses login systems, CAPTCHAs, robots policies, rate limits, or technical
 access controls. Detailed safeguards are in `docs/scraping.md`.

@@ -9,4 +9,8 @@ export type ScrapeInput = {
   category?: string;
   searchQuery: string;
   requestedLimit: number;
+  requestPolicy?: {
+    requestsPerMinute: number;
+    maxConcurrency: number;
+  };
 };

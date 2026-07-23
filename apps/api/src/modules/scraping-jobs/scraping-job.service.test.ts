@@ -19,6 +19,12 @@ vi.mock("../../infrastructure/queue/scraping.queue.js", () => ({
   removeScrapingQueueJob: vi.fn(),
 }));
 
+vi.mock("../admin/source-policy.service.js", () => ({
+  assertAutomatedAccessAllowed: vi.fn(async () => ({
+    key: "fixture-business-directory",
+  })),
+}));
+
 vi.mock("./scraping-job.repository.js", () => ({
   cancelOwnedScrapingJob: vi.fn(),
   createScrapingJobRecord: vi.fn(),
