@@ -12,7 +12,7 @@ The payload contains the database job UUID, geographic/category filters, search 
 
 ## Lifecycle And Progress
 
-Database status flows through `PENDING`, `QUEUED`, `RUNNING`, then `COMPLETED` or final `FAILED`. The mock processor handles at most 100 records in batches of two, updates BullMQ and database progress, and creates no leads or external network requests.
+Database status flows through `PENDING`, `QUEUED`, `RUNNING`, then `COMPLETED` or final `FAILED`. The Phase-4 processor handles at most 100 permitted fixture records, updates BullMQ/database progress, and persists normalized non-duplicate leads.
 
 Jobs have three attempts and exponential backoff beginning at five seconds. A processing exception is rethrown so BullMQ controls retries. The database is marked `FAILED` only after the final attempt is exhausted. Completed jobs retain up to 500 records for one day; failed jobs retain up to 1,000 records for seven days.
 
@@ -39,4 +39,4 @@ PostgreSQL record creation and Redis enqueue cannot be one atomic transaction. P
 
 ## Current Limitation
 
-This phase processes mock counters only. It performs no web scraping, lead creation, authentication, proxying, CAPTCHA handling, or external HTTP requests. Real permitted-source adapters belong to a later phase.
+The default adapter reads fictional local fixture HTML and makes no external request. The controlled HTTP adapter is disabled by default and requires explicit administrator configuration. Authentication, proxying, CAPTCHA handling, and prohibited-platform extraction remain excluded.

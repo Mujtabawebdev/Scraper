@@ -2,6 +2,7 @@ import { z } from "zod";
 
 export const createTestScrapingJobSchema = z
   .object({
+    sourceKey: z.enum(["fixture-directory", "permitted-http-directory"]),
     country: z.string().trim().min(1).max(100),
     state: z.string().trim().min(1).max(100).optional(),
     city: z.string().trim().min(1).max(120).optional(),

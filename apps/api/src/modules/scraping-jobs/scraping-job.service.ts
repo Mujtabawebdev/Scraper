@@ -2,6 +2,7 @@ import type { ScrapingJobQueueData } from "@lead-saas/shared-types";
 
 import { prisma } from "../../infrastructure/database/prisma.js";
 import { enqueueScrapingJob } from "../../infrastructure/queue/scraping.queue.js";
+import { env } from "../../config/env.js";
 import type { z } from "zod";
 import type { createTestScrapingJobSchema } from "./scraping-job.schemas.js";
 
@@ -10,12 +11,18 @@ const SYSTEM_USER_EMAIL = "system@lead-saas.local";
 export type CreateTestScrapingJobInput = z.infer<typeof createTestScrapingJobSchema>;
 
 export const createAndEnqueueTestJob = async (input: CreateTestScrapingJobInput) => {
+  if (
+    input.sourceKey === "permitted-http-directory" &&
+    (!env.SCRAPING_EXTERNAL_SOURCE_ENABLED || !env.SCRAPING_APPROVED_BASE_URL)
+  ) {
+    throw new Error("SOURCE_NOT_PERMITTED");
+  }
   const systemUser = await prisma.user.findUnique({ where: { email: SYSTEM_USER_EMAIL } });
   if (!systemUser) throw new Error("DEVELOPMENT_SYSTEM_USER_MISSING");
 
   const databaseJob = await prisma.scrapingJob.create({
     data: {
-      name: `Mock: ${input.searchQuery}`.slice(0, 150),
+      name: `POC: ${input.searchQuery}`.slice(0, 150),
       country: input.country,
       searchQuery: input.searchQuery,
       requestedLimit: input.requestedLimit,
@@ -29,6 +36,7 @@ export const createAndEnqueueTestJob = async (input: CreateTestScrapingJobInput)
 
   const queueData: ScrapingJobQueueData = {
     scrapingJobId: databaseJob.id,
+    sourceKey: input.sourceKey,
     country: input.country,
     searchQuery: input.searchQuery,
     requestedLimit: input.requestedLimit,

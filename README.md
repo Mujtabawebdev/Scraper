@@ -61,25 +61,29 @@ npm run prisma:studio --workspace=@lead-saas/api
 
 Use `prisma migrate dev` only in development. Production environments apply already reviewed migrations with `prisma migrate deploy`. Detailed architecture and workflow notes are in `docs/database.md`.
 
-## Mock Queue Workflow
+## Permitted Fixture Scraping POC
 
-With the API and worker running, enqueue a mock job without making external requests:
+With the API and worker running, enqueue a fixture job without making internet requests:
 
 ```powershell
 $body = @{
+  sourceKey = "fixture-directory"
   country = "United States"
   state = "Texas"
   city = "Houston"
   category = "Roofing"
   searchQuery = "roofing contractors in Houston Texas"
-  requestedLimit = 10
+  requestedLimit = 20
 } | ConvertTo-Json
 
 $created = Invoke-RestMethod -Method Post -Uri http://localhost:5000/api/v1/scraping-jobs/test -ContentType "application/json" -Body $body
 Invoke-RestMethod -Uri "http://localhost:5000/api/v1/scraping-jobs/$($created.data.scrapingJobId)"
+$leads = Invoke-RestMethod -Uri "http://localhost:5000/api/v1/leads?scrapingJobId=$($created.data.scrapingJobId)&page=1&limit=20"
 ```
 
 Jobs receive three attempts with exponential backoff starting at five seconds. Completed and failed jobs retain bounded history for local diagnostics. Stop local services with `docker compose down`; named volumes preserve PostgreSQL and Redis data. See `docs/queue.md` for architecture and consistency details.
+
+The POC accepts at most 100 records per job. `fixture-directory` uses fictional local HTML only. The controlled HTTP adapter remains disabled unless an administrator explicitly enables it and configures an approved base URL after reviewing source terms. Public visibility alone is not permission to scrape. The project never bypasses login systems, CAPTCHAs, robots policies, rate limits, or technical access controls. Detailed safeguards and normalization rules are in `docs/scraping.md`.
 
 ## Compliance Notice
 

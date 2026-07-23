@@ -29,13 +29,22 @@ scrapingJobRouter.post("/test", async (request, response) => {
     });
   } catch (error: unknown) {
     const missingUser = error instanceof Error && error.message === "DEVELOPMENT_SYSTEM_USER_MISSING";
+    const sourceNotPermitted = error instanceof Error && error.message === "SOURCE_NOT_PERMITTED";
     logger.error({ operation: "enqueue-test-job" }, "Test job enqueue failed");
-    response.status(503).json({
+    response.status(sourceNotPermitted ? 400 : 503).json({
       success: false,
-      message: missingUser
+      message: sourceNotPermitted
+        ? "Requested scraping source is not enabled"
+        : missingUser
         ? "Development system user is not seeded"
         : "Test scraping job could not be queued",
-      error: { code: missingUser ? "SYSTEM_USER_MISSING" : "QUEUE_UNAVAILABLE" },
+      error: {
+        code: sourceNotPermitted
+          ? "SOURCE_NOT_PERMITTED"
+          : missingUser
+            ? "SYSTEM_USER_MISSING"
+            : "QUEUE_UNAVAILABLE",
+      },
     });
   }
 });

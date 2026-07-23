@@ -15,6 +15,12 @@ const envSchema = z.object({
   QUEUE_PREFIX: z.string().trim().min(1).default("lead-saas"),
   SCRAPING_QUEUE_NAME: z.string().trim().min(1).default("scraping-jobs"),
   WORKER_CONCURRENCY: z.coerce.number().int().min(1).max(20).default(2),
+  SCRAPING_EXTERNAL_SOURCE_ENABLED: z.stringbool().default(false),
+  SCRAPING_APPROVED_BASE_URL: z.string().trim().optional(),
+  SCRAPING_USER_AGENT: z.string().trim().min(1).default("LeadSaaSResearchBot/0.1"),
+  SCRAPING_REQUEST_TIMEOUT_MS: z.coerce.number().int().min(1_000).max(60_000).default(10_000),
+  SCRAPING_MIN_DELAY_MS: z.coerce.number().int().min(1_500).max(60_000).default(1_500),
+  SCRAPING_MAX_PAGES_PER_JOB: z.coerce.number().int().min(1).max(5).default(5),
 });
 
 const result = envSchema.safeParse(process.env);
