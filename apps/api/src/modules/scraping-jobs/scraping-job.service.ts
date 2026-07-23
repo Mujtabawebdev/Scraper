@@ -13,10 +13,13 @@ import {
 } from "../../infrastructure/queue/scraping.queue.js";
 import {
   queueUnavailableError,
+  apiCredentialsMissingError,
   scrapingJobNotCancellableError,
   scrapingJobNotFoundError,
   scrapingJobNotRetryableError,
   sourceNotPermittedError,
+  sourceNotConfiguredError,
+  sourceRateLimitedError,
 } from "./scraping-job.errors.js";
 import { assertAutomatedAccessAllowed } from "../admin/source-policy.service.js";
 import {
@@ -30,6 +33,7 @@ import {
   findOwnedScrapingJobDetail,
   findOwnedScrapingJobForRetry,
   findOwnedScrapingJobSummary,
+  countRecentOwnedJobsBySource,
   listOwnedScrapingJobs,
   markScrapingJobEnqueueFailed,
   markScrapingJobQueued,
@@ -49,11 +53,19 @@ type QueueLocation = {
 const sourceKeyByPublicSource = {
   "fixture-business-directory": "fixture-directory",
   "permitted-http-directory": "permitted-http-directory",
+  "google-places-api": "google-places-api",
+  "government-dataset": "government-dataset",
+  "meta-approved-api": "meta-approved-api",
+  "yelp-approved-api": "yelp-approved-api",
 } as const satisfies Record<ScrapingJobQueueSource, ScrapingSourceKey>;
 
 const isSupportedSource = (source: string): source is ScrapingJobQueueSource =>
   source === "fixture-business-directory" ||
-  source === "permitted-http-directory";
+  source === "permitted-http-directory" ||
+  source === "google-places-api" ||
+  source === "government-dataset" ||
+  source === "meta-approved-api" ||
+  source === "yelp-approved-api";
 
 const assertSourceIsEnabled = async (
   source: ScrapingJobQueueSource,
@@ -64,6 +76,21 @@ const assertSourceIsEnabled = async (
     (!env.SCRAPING_EXTERNAL_SOURCE_ENABLED || !env.SCRAPING_APPROVED_BASE_URL)
   ) {
     throw sourceNotPermittedError();
+  }
+  if (source === "google-places-api" && !env.GOOGLE_PLACES_API_KEY) {
+    throw apiCredentialsMissingError();
+  }
+  if (source === "government-dataset" && !env.GOVERNMENT_DATASET_URL) {
+    throw sourceNotConfiguredError();
+  }
+  if (
+    source === "meta-approved-api" &&
+    !env.META_APPROVED_API_ACCESS_TOKEN
+  ) {
+    throw apiCredentialsMissingError();
+  }
+  if (source === "yelp-approved-api" && !env.YELP_APPROVED_API_KEY) {
+    throw apiCredentialsMissingError();
   }
 };
 
@@ -85,6 +112,13 @@ const enqueueNewScrapingJob = async (
   data: NewScrapingJobData,
 ): Promise<{ job: ScrapingJobSummary; queueJobId: string }> => {
   await assertSourceIsEnabled(data.source);
+  const recentCount = await countRecentOwnedJobsBySource(
+    data.userId,
+    data.source,
+    new Date(Date.now() - 60 * 60 * 1_000),
+  );
+  const sourceHourlyLimit = data.source === "google-places-api" ? 5 : 10;
+  if (recentCount >= sourceHourlyLimit) throw sourceRateLimitedError();
   const queueLocation = {
     ...parseQueueLocation(data.location),
     ...(data.city ? { city: data.city } : {}),

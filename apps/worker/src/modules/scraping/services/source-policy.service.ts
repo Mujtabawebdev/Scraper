@@ -15,6 +15,22 @@ const databaseKey = (sourceKey: string): string =>
 const policyError = (code: string, message: string): ScraperError =>
   new ScraperError(message, code);
 
+const hasRequiredCredential = (sourceKey: string): boolean => {
+  if (sourceKey === "google-places-api") {
+    return Boolean(env.GOOGLE_PLACES_API_KEY);
+  }
+  if (sourceKey === "meta-approved-api") {
+    return Boolean(env.META_APPROVED_API_ACCESS_TOKEN);
+  }
+  if (sourceKey === "yelp-approved-api") {
+    return Boolean(env.YELP_APPROVED_API_KEY);
+  }
+  const variableName = `SOURCE_${sourceKey
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, "_")}_API_KEY`;
+  return Boolean(process.env[variableName]?.trim());
+};
+
 export const getApprovedSource = async (sourceKey: string) => {
   const source = await prisma.approvedSource.findUnique({
     where: { key: databaseKey(sourceKey) },
@@ -71,12 +87,9 @@ export const assertAutomatedAccessAllowed = async (
     );
   }
   if (source.requiresApiKey) {
-    const variableName = `SOURCE_${source.key
-      .toUpperCase()
-      .replace(/[^A-Z0-9]+/g, "_")}_API_KEY`;
-    if (!process.env[variableName]?.trim()) {
+    if (!hasRequiredCredential(source.key)) {
       throw policyError(
-        "SOURCE_REVIEW_REQUIRED",
+        "API_CREDENTIALS_MISSING",
         "Required source credential is not configured",
       );
     }

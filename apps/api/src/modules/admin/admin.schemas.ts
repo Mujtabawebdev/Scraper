@@ -13,11 +13,14 @@ const jobStatuses = [
 const sourceTypes = [
   "FIXTURE",
   "OFFICIAL_API",
+  "GOOGLE_PLACES_API",
   "PUBLIC_DIRECTORY",
   "GOVERNMENT_DATASET",
   "OFFICIAL_WEBSITE",
   "LICENSED_DATASET",
   "CSV_IMPORT",
+  "META_APPROVED_API",
+  "YELP_APPROVED_API",
 ] as const;
 const sourceStatuses = [
   "APPROVED",

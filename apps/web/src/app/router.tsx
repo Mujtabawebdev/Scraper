@@ -98,6 +98,11 @@ const LeadDetailPage = lazy(() =>
     default: module.LeadDetailPage,
   })),
 );
+const CsvImportPage = lazy(() =>
+  import("../features/imports/pages/csv-import-page").then((module) => ({
+    default: module.CsvImportPage,
+  })),
+);
 const ComingSoonPage = lazy(() =>
   import("../pages/coming-soon-page").then((module) => ({
     default: module.ComingSoonPage,
@@ -167,6 +172,10 @@ export const router = createBrowserRouter([
           {
             path: "leads/:leadId",
             element: <LeadDetailPage />,
+          },
+          {
+            path: "imports/csv",
+            element: <CsvImportPage />,
           },
           {
             path: "settings",

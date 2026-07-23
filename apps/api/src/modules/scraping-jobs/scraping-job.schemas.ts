@@ -6,6 +6,10 @@ import { z } from "zod";
 const approvedScrapingSources = [
   "fixture-business-directory",
   "permitted-http-directory",
+  "google-places-api",
+  "government-dataset",
+  "meta-approved-api",
+  "yelp-approved-api",
 ] as const;
 const scrapingJobStatuses = [
   "PENDING",

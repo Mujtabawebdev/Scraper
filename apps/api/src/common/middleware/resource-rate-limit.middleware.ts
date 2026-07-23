@@ -40,3 +40,21 @@ export const leadExportRateLimiter = createResourceRateLimiter(
   10,
   "lead export",
 );
+
+export const sourceHealthCheckRateLimiter = createResourceRateLimiter(
+  15 * 60 * 1_000,
+  10,
+  "source health check",
+);
+
+export const leadVerificationRateLimiter = createResourceRateLimiter(
+  15 * 60 * 1_000,
+  20,
+  "lead verification",
+);
+
+export const csvImportRateLimiter = createResourceRateLimiter(
+  60 * 60 * 1_000,
+  10,
+  "CSV import",
+);

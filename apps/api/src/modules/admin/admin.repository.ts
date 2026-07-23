@@ -117,6 +117,13 @@ export const approvedSourceSelect = {
   termsReviewedAt: true,
   reviewNotes: true,
   blockedReason: true,
+  lastHealthCheckAt: true,
+  lastHealthCheckStatus: true,
+  lastHealthCheckMessage: true,
+  lastHealthCheckLatencyMs: true,
+  lastSuccessfulRequestAt: true,
+  recentFailureCount: true,
+  quotaLimitedUntil: true,
   createdAt: true,
   updatedAt: true,
   createdBy: { select: adminOwnerSelect },
@@ -856,3 +863,61 @@ export const setSourcePolicyState = async (
     },
   });
 };
+
+export const recordSourceHealthCheck = async (
+  context: AdminActionContext,
+  sourceId: string,
+  input: {
+    status:
+      | "HEALTHY"
+      | "DEGRADED"
+      | "UNAVAILABLE"
+      | "CONFIGURATION_MISSING"
+      | "QUOTA_LIMITED"
+      | "BLOCKED";
+    message: string;
+    latencyMs?: number;
+    quotaLimitedUntil?: Date | null;
+  },
+): Promise<ApprovedSourceRecord> =>
+  prisma.$transaction(async (transaction) => {
+    const now = new Date();
+    const existing = await transaction.approvedSource.findUnique({
+      where: { id: sourceId },
+      select: { id: true, key: true, recentFailureCount: true },
+    });
+    if (!existing) throw sourceNotFoundError();
+    const success = input.status === "HEALTHY";
+    const source = await transaction.approvedSource.update({
+      where: { id: sourceId },
+      data: {
+        lastHealthCheckAt: now,
+        lastHealthCheckStatus: input.status,
+        lastHealthCheckMessage: input.message.slice(0, 500),
+        ...(input.latencyMs !== undefined
+          ? { lastHealthCheckLatencyMs: input.latencyMs }
+          : {}),
+        ...(success ? { lastSuccessfulRequestAt: now } : {}),
+        recentFailureCount: success ? 0 : existing.recentFailureCount + 1,
+        ...(input.quotaLimitedUntil !== undefined
+          ? { quotaLimitedUntil: input.quotaLimitedUntil }
+          : {}),
+        updatedByUserId: context.actorUserId,
+      },
+      select: approvedSourceSelect,
+    });
+    await transaction.auditLog.create({
+      data: auditData(context, {
+        action: "ADMIN_SOURCE_HEALTH_CHECKED",
+        entityType: "APPROVED_SOURCE",
+        entityId: source.id,
+        metadata: {
+          summary: `Source ${source.key} health check: ${input.status}`,
+          sourceKey: source.key,
+          status: input.status,
+          latencyMs: input.latencyMs ?? null,
+        },
+      }),
+    });
+    return source as ApprovedSourceRecord;
+  });

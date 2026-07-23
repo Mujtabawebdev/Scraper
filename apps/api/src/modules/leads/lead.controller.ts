@@ -9,7 +9,12 @@ import {
   leadParamsSchema,
   listLeadsQuerySchema,
 } from "./lead.schemas.js";
-import { getLead, listLeads } from "./lead.service.js";
+import {
+  getLead,
+  getLeadProvenance,
+  listLeads,
+  verifyLead,
+} from "./lead.service.js";
 
 const parse = <Output>(schema: ZodType<Output>, value: unknown): Output => {
   const result = schema.safeParse(value);
@@ -59,4 +64,35 @@ export const exportCsv = async (
     `attachment; filename="leads-export-${date}.csv"`,
   );
   response.status(200).send(csv);
+};
+
+export const verify = async (
+  request: Request,
+  response: Response,
+): Promise<void> => {
+  const params = parse(leadParamsSchema, request.params);
+  const lead = await verifyLead(requireUserId(request), params.leadId);
+  response.status(200).json({
+    success: true,
+    message:
+      "Phone format and plausibility verified locally; subscriber ownership was not verified",
+    data: { lead },
+  });
+};
+
+export const provenance = async (
+  request: Request,
+  response: Response,
+): Promise<void> => {
+  const params = parse(leadParamsSchema, request.params);
+  response.status(200).json({
+    success: true,
+    message: "Lead provenance fetched successfully",
+    data: {
+      provenance: await getLeadProvenance(
+        requireUserId(request),
+        params.leadId,
+      ),
+    },
+  });
 };

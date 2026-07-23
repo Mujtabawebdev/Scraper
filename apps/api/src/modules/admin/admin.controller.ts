@@ -30,6 +30,7 @@ import {
   getAdminJobs,
   getAdminSource,
   getAdminSources,
+  healthCheckAdminSource,
   getAdminSummary,
   getAdminUser,
   getAdminUsers,
@@ -276,6 +277,23 @@ export const markSourceReviewRequired = async (
         requireAdminContext(request),
         params.sourceId,
         input,
+      ),
+    },
+  });
+};
+
+export const healthCheckSource = async (
+  request: Request,
+  response: Response,
+): Promise<void> => {
+  const params = parse(adminSourceParamsSchema, request.params);
+  response.status(200).json({
+    success: true,
+    message: "Source health check completed",
+    data: {
+      source: await healthCheckAdminSource(
+        requireAdminContext(request),
+        params.sourceId,
       ),
     },
   });

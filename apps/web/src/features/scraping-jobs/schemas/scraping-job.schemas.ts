@@ -1,11 +1,8 @@
 import { z } from "zod";
 
-import { APPROVED_SOURCE_OPTIONS } from "../types/scraping-job.types";
+import { REAL_JOB_SOURCE_VALUES } from "../types/scraping-job.types";
 
-const approvedSourceValues = [
-  APPROVED_SOURCE_OPTIONS[0].value,
-  APPROVED_SOURCE_OPTIONS[1].value,
-] as const;
+const approvedSourceValues = REAL_JOB_SOURCE_VALUES;
 
 const normalizedRequiredText = (label: string) =>
   z

@@ -6,8 +6,10 @@ import {
   Mail,
   MapPin,
   Phone,
+  ShieldCheck,
 } from "lucide-react";
 import { Link, useLocation, useParams } from "react-router-dom";
+import { toast } from "sonner";
 
 import { PageLoader } from "../../../components/feedback/page-loader";
 import { Alert } from "../../../components/ui/alert";
@@ -26,6 +28,8 @@ import {
   getSafeHttpUrl,
 } from "../../../utils/formatters";
 import { useLead } from "../hooks/use-lead";
+import { useLeadProvenance } from "../hooks/use-lead-provenance";
+import { useVerifyLead } from "../hooks/use-verify-lead";
 
 const isRecord = (value: unknown): value is Readonly<Record<string, unknown>> =>
   typeof value === "object" && value !== null;
@@ -45,6 +49,8 @@ export function LeadDetailPage() {
   const location = useLocation();
   const returnTo = getSafeReturnPath(location.state as unknown);
   const leadQuery = useLead(leadId);
+  const provenanceQuery = useLeadProvenance(leadId);
+  const verifyMutation = useVerifyLead(leadId);
 
   if (leadQuery.isLoading) {
     return <PageLoader fullScreen={false} message="Loading lead details..." />;
@@ -189,7 +195,7 @@ export function LeadDetailPage() {
                   {formatOptionalText(lead.category)}
                 </dd>
               </div>
-              {[
+              {[ 
                 ["Address", lead.address],
                 ["City", lead.city],
                 ["State", lead.state],
@@ -197,6 +203,13 @@ export function LeadDetailPage() {
                 ["Country", lead.country],
                 ["Collected", formatDateTime(lead.createdAt)],
                 ["Updated", formatDateTime(lead.updatedAt)],
+                ["Phone status", lead.phoneValidationStatus.replaceAll("_", " ")],
+                [
+                  "Confidence",
+                  `${lead.confidenceScore}/100 · ${lead.confidenceLevel.replaceAll("_", " ")}`,
+                ],
+                ["Phone type", lead.phoneType.replaceAll("_", " ")],
+                ["Last verified", formatDateTime(lead.lastVerifiedAt)],
               ].map(([label, value]) => (
                 <div key={label}>
                   <dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">
@@ -259,8 +272,115 @@ export function LeadDetailPage() {
               )}
             </CardContent>
           </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle>Local phone check</CardTitle>
+              <CardDescription>
+                Validates format and plausibility only; it does not confirm a
+                carrier subscriber or current ownership.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button
+                disabled={!lead.phone}
+                isLoading={verifyMutation.isPending}
+                onClick={() =>
+                  verifyMutation.mutate(undefined, {
+                    onSuccess: () =>
+                      toast.success("Phone plausibility check completed."),
+                    onError: (error) =>
+                      toast.error(getApiErrorMessage(error)),
+                  })
+                }
+                type="button"
+                variant="outline"
+              >
+                <ShieldCheck aria-hidden="true" className="size-4" />
+                Verify phone locally
+              </Button>
+            </CardContent>
+          </Card>
         </div>
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Source provenance</CardTitle>
+          <CardDescription>
+            Safe source history and confidence contribution. Raw provider
+            payloads, credentials and headers are never displayed.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {provenanceQuery.isLoading ? (
+            <p className="text-sm text-slate-500">Loading provenance…</p>
+          ) : null}
+          {provenanceQuery.isError ? (
+            <Alert variant="warning">
+              {getApiErrorMessage(provenanceQuery.error)}
+            </Alert>
+          ) : null}
+          <div className="grid gap-4 md:grid-cols-2">
+            {provenanceQuery.data?.map((record) => {
+              const provenanceUrl = getSafeHttpUrl(record.sourceUrl);
+              return (
+                <article
+                  className="rounded-xl border border-slate-200 p-4"
+                  key={record.id}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <h3 className="font-semibold text-slate-900">
+                        {record.sourceName}
+                      </h3>
+                      <p className="text-xs text-slate-500">
+                        {record.sourceType.replaceAll("_", " ")} ·{" "}
+                        {record.extractionMethod.replaceAll("_", " ")}
+                      </p>
+                    </div>
+                    <span className="rounded-full bg-brand-50 px-2 py-1 text-xs font-semibold text-brand-800">
+                      +{record.confidenceContribution}
+                    </span>
+                  </div>
+                  <dl className="mt-4 grid gap-2 text-sm">
+                    <div>
+                      <dt className="text-slate-500">Phone found</dt>
+                      <dd>{record.phone ?? "No phone found"}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-slate-500">Collected</dt>
+                      <dd>{formatDateTime(record.sourceCollectedAt)}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-slate-500">Source confidence</dt>
+                      <dd>{record.sourceConfidenceScore}/100</dd>
+                    </div>
+                  </dl>
+                  {provenanceUrl ? (
+                    <a
+                      className="mt-3 inline-flex items-center gap-1 text-sm font-semibold text-brand-700 hover:underline"
+                      href={provenanceUrl}
+                      rel="noopener noreferrer"
+                      target="_blank"
+                    >
+                      Open source
+                      <ExternalLink aria-hidden="true" className="size-3.5" />
+                    </a>
+                  ) : null}
+                  {record.sourceKey === "google-places-api" ? (
+                    <p
+                      className="mt-3 text-xs text-slate-500"
+                      translate="no"
+                    >
+                      Google Maps
+                    </p>
+                  ) : null}
+                </article>
+              );
+            })}
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }

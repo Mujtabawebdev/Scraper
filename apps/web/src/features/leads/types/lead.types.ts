@@ -1,10 +1,11 @@
 import type {
   LeadDetail,
+  LeadProvenance,
   LeadSummary,
   PaginationMetadata,
 } from "@lead-saas/shared-types";
 
-export type { LeadDetail, LeadSummary, PaginationMetadata };
+export type { LeadDetail, LeadProvenance, LeadSummary, PaginationMetadata };
 
 export const LEAD_SORT_FIELDS = [
   "createdAt",
@@ -12,6 +13,8 @@ export const LEAD_SORT_FIELDS = [
   "city",
   "state",
   "source",
+  "confidenceScore",
+  "lastVerifiedAt",
 ] as const;
 export type LeadSortField = (typeof LEAD_SORT_FIELDS)[number];
 export type SortOrder = "asc" | "desc";
@@ -26,12 +29,18 @@ export type LeadListFilters = {
   city?: string;
   state?: string;
   hasPhone?: boolean;
+  hasValidPhone?: boolean;
+  phoneValidationStatus?: LeadSummary["phoneValidationStatus"];
+  confidenceLevel?: LeadSummary["confidenceLevel"];
+  sourceType?: string;
   hasEmail?: boolean;
   hasWebsite?: boolean;
   sortBy: LeadSortField;
   sortOrder: SortOrder;
   createdFrom?: string;
   createdTo?: string;
+  lastVerifiedFrom?: string;
+  lastVerifiedTo?: string;
 };
 
 export type LeadListData = {

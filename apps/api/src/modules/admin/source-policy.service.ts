@@ -14,6 +14,7 @@ import {
   setSourcePolicyState,
 } from "./admin.repository.js";
 import { mapApprovedSource } from "./admin.mapper.js";
+import { isSourceCredentialConfigured } from "../sources/source-configuration.js";
 
 export type SourceRateLimitPolicy = {
   requestsPerMinute: number;
@@ -75,6 +76,9 @@ export const assertAutomatedAccessAllowed = async (
       if (error instanceof Error && error.name === "AdminError") throw error;
       throw sourceReviewRequiredError();
     }
+  }
+  if (source.requiresApiKey && !isSourceCredentialConfigured(source.key)) {
+    throw sourceReviewRequiredError();
   }
   return source;
 };

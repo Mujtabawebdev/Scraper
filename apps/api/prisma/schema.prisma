@@ -45,23 +45,59 @@ enum PhoneType {
   UNKNOWN
 }
 
+enum PhoneValidationStatus {
+  VALID
+  POSSIBLE
+  INVALID
+  PLACEHOLDER
+  UNVERIFIED
+  NO_PHONE_FOUND
+}
+
+enum ConfidenceLevel {
+  HIGH
+  MEDIUM
+  LOW
+  VERY_LOW
+}
+
+enum ExtractionMethod {
+  OFFICIAL_API
+  HTML_TEL_LINK
+  HTML_MAILTO_LINK
+  VISIBLE_TEXT
+  SCHEMA_ORG
+  DATASET_FIELD
+  CSV_COLUMN
+  LOCAL_REVALIDATION
+}
+
 enum SourceType {
   GOVERNMENT_DIRECTORY
   BUSINESS_DIRECTORY
   COMPANY_WEBSITE
   LICENSED_API
   USER_IMPORT
+  GOOGLE_PLACES_API
+  GOVERNMENT_DATASET
+  LICENSED_DATASET
+  CSV_IMPORT
+  META_APPROVED_API
+  YELP_APPROVED_API
   OTHER
 }
 
 enum ApprovedSourceType {
   FIXTURE
   OFFICIAL_API
+  GOOGLE_PLACES_API
   PUBLIC_DIRECTORY
   GOVERNMENT_DATASET
   OFFICIAL_WEBSITE
   LICENSED_DATASET
   CSV_IMPORT
+  META_APPROVED_API
+  YELP_APPROVED_API
 }
 
 enum ApprovedSourceStatus {
@@ -69,6 +105,39 @@ enum ApprovedSourceStatus {
   DISABLED
   BLOCKED
   REVIEW_REQUIRED
+}
+
+enum SourceHealthStatus {
+  NOT_CHECKED
+  HEALTHY
+  DEGRADED
+  UNAVAILABLE
+  CONFIGURATION_MISSING
+  QUOTA_LIMITED
+  BLOCKED
+}
+
+enum AcquisitionStage {
+  DISCOVER_BUSINESSES
+  FETCH_SOURCE_DETAILS
+  DISCOVER_OFFICIAL_WEBSITE
+  CRAWL_PUBLIC_CONTACT_PAGES
+  EXTRACT_CONTACT_DATA
+  NORMALIZE_PHONE
+  VALIDATE_PHONE
+  DEDUPLICATE
+  SCORE_CONFIDENCE
+  PERSIST_LEAD
+  COMPLETE_JOB
+}
+
+enum CsvImportStatus {
+  PENDING
+  QUEUED
+  PROCESSING
+  COMPLETED
+  PARTIAL
+  FAILED
 }
 
 model User {
@@ -87,6 +156,7 @@ model User {
   targetedAuditLogs      AuditLog[]       @relation("AuditTarget")
   approvedSourcesCreated ApprovedSource[] @relation("ApprovedSourceCreator")
   approvedSourcesUpdated ApprovedSource[] @relation("ApprovedSourceUpdater")
+  csvImports             CsvImport[]
   sessions               UserSession[]
 
   @@map("users")
@@ -114,36 +184,38 @@ model UserSession {
 }
 
 model ScrapingJob {
-  id                 String        @id @default(uuid()) @db.Uuid
-  name               String        @db.VarChar(150)
-  source             String        @default("fixture-business-directory") @db.VarChar(100)
-  country            String        @default("United States") @db.VarChar(100)
-  state              String?       @db.VarChar(100)
-  city               String?       @db.VarChar(120)
-  location           String        @default("United States") @db.VarChar(255)
-  category           String?       @db.VarChar(150)
-  searchQuery        String?       @map("search_query") @db.VarChar(500)
-  requestedLimit     Int           @map("requested_limit")
-  successCount       Int           @default(0) @map("collected_count")
-  processedCount     Int           @default(0) @map("processed_count")
-  failureCount       Int           @default(0) @map("failed_count")
-  duplicateCount     Int           @default(0) @map("duplicate_count")
-  progressPercentage Int           @default(0) @map("progress")
-  status             JobStatus     @default(PENDING)
-  startedAt          DateTime?     @map("started_at") @db.Timestamptz(3)
-  completedAt        DateTime?     @map("completed_at") @db.Timestamptz(3)
-  failedAt           DateTime?     @map("failed_at") @db.Timestamptz(3)
-  cancelledAt        DateTime?     @map("cancelled_at") @db.Timestamptz(3)
-  errorMessage       String?       @map("failure_reason") @db.Text
-  queueJobId         String?       @map("queue_job_id") @db.VarChar(255)
-  retryOfJobId       String?       @map("retry_of_job_id") @db.Uuid
-  createdAt          DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt          DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
-  userId             String        @map("user_id") @db.Uuid
-  user               User          @relation(fields: [userId], references: [id], onDelete: Restrict)
-  retryOfJob         ScrapingJob?  @relation("ScrapingJobRetries", fields: [retryOfJobId], references: [id], onDelete: SetNull)
-  retries            ScrapingJob[] @relation("ScrapingJobRetries")
+  id                 String           @id @default(uuid()) @db.Uuid
+  name               String           @db.VarChar(150)
+  source             String           @default("fixture-business-directory") @db.VarChar(100)
+  country            String           @default("United States") @db.VarChar(100)
+  state              String?          @db.VarChar(100)
+  city               String?          @db.VarChar(120)
+  location           String           @default("United States") @db.VarChar(255)
+  category           String?          @db.VarChar(150)
+  searchQuery        String?          @map("search_query") @db.VarChar(500)
+  requestedLimit     Int              @map("requested_limit")
+  successCount       Int              @default(0) @map("collected_count")
+  processedCount     Int              @default(0) @map("processed_count")
+  failureCount       Int              @default(0) @map("failed_count")
+  duplicateCount     Int              @default(0) @map("duplicate_count")
+  progressPercentage Int              @default(0) @map("progress")
+  pipelineStage      AcquisitionStage @default(DISCOVER_BUSINESSES) @map("pipeline_stage")
+  status             JobStatus        @default(PENDING)
+  startedAt          DateTime?        @map("started_at") @db.Timestamptz(3)
+  completedAt        DateTime?        @map("completed_at") @db.Timestamptz(3)
+  failedAt           DateTime?        @map("failed_at") @db.Timestamptz(3)
+  cancelledAt        DateTime?        @map("cancelled_at") @db.Timestamptz(3)
+  errorMessage       String?          @map("failure_reason") @db.Text
+  queueJobId         String?          @map("queue_job_id") @db.VarChar(255)
+  retryOfJobId       String?          @map("retry_of_job_id") @db.Uuid
+  createdAt          DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt          DateTime         @updatedAt @map("updated_at") @db.Timestamptz(3)
+  userId             String           @map("user_id") @db.Uuid
+  user               User             @relation(fields: [userId], references: [id], onDelete: Restrict)
+  retryOfJob         ScrapingJob?     @relation("ScrapingJobRetries", fields: [retryOfJobId], references: [id], onDelete: SetNull)
+  retries            ScrapingJob[]    @relation("ScrapingJobRetries")
   leads              Lead[]
+  csvImports         CsvImport[]
 
   @@unique([id, userId])
   @@index([status])
@@ -155,38 +227,53 @@ model ScrapingJob {
 }
 
 model Lead {
-  id                      String      @id @default(uuid()) @db.Uuid
-  businessName            String      @map("business_name") @db.VarChar(255)
-  phoneRaw                String?     @map("phone_raw") @db.VarChar(50)
-  phoneNormalized         String?     @map("phone_normalized") @db.VarChar(20)
-  phoneType               PhoneType   @default(UNKNOWN) @map("phone_type")
-  email                   String?     @db.VarChar(320)
-  website                 String?     @db.VarChar(2048)
-  domain                  String?     @db.VarChar(253)
-  addressLine1            String?     @map("address_line_1") @db.VarChar(255)
-  addressLine2            String?     @map("address_line_2") @db.VarChar(255)
-  city                    String?     @db.VarChar(120)
-  state                   String?     @db.VarChar(100)
-  postalCode              String?     @map("postal_code") @db.VarChar(20)
-  country                 String      @default("United States") @db.VarChar(100)
-  category                String?     @db.VarChar(150)
-  sourceType              SourceType  @map("source_type")
-  sourceName              String      @map("source_name") @db.VarChar(150)
-  sourceUrl               String      @map("source_url") @db.VarChar(2048)
-  sourceExternalId        String?     @map("source_external_id") @db.VarChar(255)
-  status                  LeadStatus  @default(NEW)
-  isPublicBusinessContact Boolean     @default(true) @map("is_public_business_contact")
-  collectedAt             DateTime    @default(now()) @map("collected_at") @db.Timestamptz(3)
-  lastVerifiedAt          DateTime?   @map("last_verified_at") @db.Timestamptz(3)
-  createdAt               DateTime    @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt               DateTime    @updatedAt @map("updated_at") @db.Timestamptz(3)
-  userId                  String      @map("user_id") @db.Uuid
-  scrapingJobId           String      @map("scraping_job_id") @db.Uuid
-  user                    User        @relation(fields: [userId], references: [id], onDelete: Restrict)
-  scrapingJob             ScrapingJob @relation(fields: [scrapingJobId, userId], references: [id, userId], onDelete: Restrict)
+  id                      String                @id @default(uuid()) @db.Uuid
+  businessName            String                @map("business_name") @db.VarChar(255)
+  phoneRaw                String?               @map("phone_raw") @db.VarChar(50)
+  phoneNormalized         String?               @map("phone_normalized") @db.VarChar(20)
+  phoneExtension          String?               @map("phone_extension") @db.VarChar(20)
+  phoneCountryCode        String?               @map("phone_country_code") @db.VarChar(8)
+  phoneNationalFormat     String?               @map("phone_national_format") @db.VarChar(50)
+  phoneType               PhoneType             @default(UNKNOWN) @map("phone_type")
+  phoneValidationStatus   PhoneValidationStatus @default(UNVERIFIED) @map("phone_validation_status")
+  email                   String?               @db.VarChar(320)
+  website                 String?               @db.VarChar(2048)
+  domain                  String?               @db.VarChar(253)
+  addressLine1            String?               @map("address_line_1") @db.VarChar(255)
+  addressLine2            String?               @map("address_line_2") @db.VarChar(255)
+  city                    String?               @db.VarChar(120)
+  state                   String?               @db.VarChar(100)
+  postalCode              String?               @map("postal_code") @db.VarChar(20)
+  country                 String                @default("United States") @db.VarChar(100)
+  category                String?               @db.VarChar(150)
+  sourceType              SourceType            @map("source_type")
+  sourceName              String                @map("source_name") @db.VarChar(150)
+  sourceUrl               String                @map("source_url") @db.VarChar(2048)
+  sourceExternalId        String?               @map("source_external_id") @db.VarChar(255)
+  googlePlaceId           String?               @map("google_place_id") @db.VarChar(255)
+  officialWebsiteDomain   String?               @map("official_website_domain") @db.VarChar(253)
+  confidenceScore         Int                   @default(0) @map("confidence_score")
+  confidenceLevel         ConfidenceLevel       @default(VERY_LOW) @map("confidence_level")
+  duplicateReason         String?               @map("duplicate_reason") @db.VarChar(255)
+  status                  LeadStatus            @default(NEW)
+  isPublicBusinessContact Boolean               @default(true) @map("is_public_business_contact")
+  collectedAt             DateTime              @default(now()) @map("collected_at") @db.Timestamptz(3)
+  lastVerifiedAt          DateTime?             @map("last_verified_at") @db.Timestamptz(3)
+  createdAt               DateTime              @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt               DateTime              @updatedAt @map("updated_at") @db.Timestamptz(3)
+  userId                  String                @map("user_id") @db.Uuid
+  scrapingJobId           String                @map("scraping_job_id") @db.Uuid
+  user                    User                  @relation(fields: [userId], references: [id], onDelete: Restrict)
+  scrapingJob             ScrapingJob           @relation(fields: [scrapingJobId, userId], references: [id, userId], onDelete: Restrict)
+  provenance              LeadProvenance[]
 
   @@index([phoneNormalized])
+  @@index([phoneValidationStatus])
   @@index([domain])
+  @@index([officialWebsiteDomain])
+  @@index([googlePlaceId])
+  @@index([userId, googlePlaceId])
+  @@index([confidenceLevel, confidenceScore])
   @@index([email])
   @@index([city, state])
   @@index([category])
@@ -223,31 +310,108 @@ model AuditLog {
 }
 
 model ApprovedSource {
-  id                    String               @id @default(uuid()) @db.Uuid
-  key                   String               @unique @db.VarChar(100)
-  displayName           String               @map("display_name") @db.VarChar(150)
-  sourceType            ApprovedSourceType   @map("source_type")
-  baseUrl               String?              @map("base_url") @db.VarChar(2048)
-  status                ApprovedSourceStatus @default(REVIEW_REQUIRED)
-  isEnabled             Boolean              @default(false) @map("is_enabled")
-  requiresApiKey        Boolean              @default(false) @map("requires_api_key")
-  allowsAutomatedAccess Boolean              @default(false) @map("allows_automated_access")
-  requestsPerMinute     Int                  @default(10) @map("requests_per_minute")
-  maxConcurrency        Int                  @default(1) @map("max_concurrency")
-  robotsPolicyCheckedAt DateTime?            @map("robots_policy_checked_at") @db.Timestamptz(3)
-  termsReviewedAt       DateTime?            @map("terms_reviewed_at") @db.Timestamptz(3)
-  reviewNotes           String?              @map("review_notes") @db.Text
-  blockedReason         String?              @map("blocked_reason") @db.Text
-  createdAt             DateTime             @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt             DateTime             @updatedAt @map("updated_at") @db.Timestamptz(3)
-  createdByUserId       String?              @map("created_by_user_id") @db.Uuid
-  updatedByUserId       String?              @map("updated_by_user_id") @db.Uuid
-  createdBy             User?                @relation("ApprovedSourceCreator", fields: [createdByUserId], references: [id], onDelete: SetNull)
-  updatedBy             User?                @relation("ApprovedSourceUpdater", fields: [updatedByUserId], references: [id], onDelete: SetNull)
+  id                       String               @id @default(uuid()) @db.Uuid
+  key                      String               @unique @db.VarChar(100)
+  displayName              String               @map("display_name") @db.VarChar(150)
+  sourceType               ApprovedSourceType   @map("source_type")
+  baseUrl                  String?              @map("base_url") @db.VarChar(2048)
+  status                   ApprovedSourceStatus @default(REVIEW_REQUIRED)
+  isEnabled                Boolean              @default(false) @map("is_enabled")
+  requiresApiKey           Boolean              @default(false) @map("requires_api_key")
+  allowsAutomatedAccess    Boolean              @default(false) @map("allows_automated_access")
+  requestsPerMinute        Int                  @default(10) @map("requests_per_minute")
+  maxConcurrency           Int                  @default(1) @map("max_concurrency")
+  robotsPolicyCheckedAt    DateTime?            @map("robots_policy_checked_at") @db.Timestamptz(3)
+  termsReviewedAt          DateTime?            @map("terms_reviewed_at") @db.Timestamptz(3)
+  reviewNotes              String?              @map("review_notes") @db.Text
+  blockedReason            String?              @map("blocked_reason") @db.Text
+  lastHealthCheckAt        DateTime?            @map("last_health_check_at") @db.Timestamptz(3)
+  lastHealthCheckStatus    SourceHealthStatus   @default(NOT_CHECKED) @map("last_health_check_status")
+  lastHealthCheckMessage   String?              @map("last_health_check_message") @db.VarChar(500)
+  lastHealthCheckLatencyMs Int?                 @map("last_health_check_latency_ms")
+  lastSuccessfulRequestAt  DateTime?            @map("last_successful_request_at") @db.Timestamptz(3)
+  recentFailureCount       Int                  @default(0) @map("recent_failure_count")
+  quotaLimitedUntil        DateTime?            @map("quota_limited_until") @db.Timestamptz(3)
+  createdAt                DateTime             @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt                DateTime             @updatedAt @map("updated_at") @db.Timestamptz(3)
+  createdByUserId          String?              @map("created_by_user_id") @db.Uuid
+  updatedByUserId          String?              @map("updated_by_user_id") @db.Uuid
+  createdBy                User?                @relation("ApprovedSourceCreator", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  updatedBy                User?                @relation("ApprovedSourceUpdater", fields: [updatedByUserId], references: [id], onDelete: SetNull)
+  provenance               LeadProvenance[]
+  csvImports               CsvImport[]
 
   @@index([status, isEnabled])
   @@index([sourceType])
   @@index([createdByUserId])
   @@index([updatedByUserId])
   @@map("approved_sources")
+}
+
+model LeadProvenance {
+  id                     String                @id @default(uuid()) @db.Uuid
+  leadId                 String                @map("lead_id") @db.Uuid
+  approvedSourceId       String?               @map("approved_source_id") @db.Uuid
+  sourceKey              String                @map("source_key") @db.VarChar(100)
+  sourceType             ApprovedSourceType    @map("source_type")
+  sourceRecordId         String?               @map("source_record_id") @db.VarChar(255)
+  sourceUrl              String?               @map("source_url") @db.VarChar(2048)
+  sourceCollectedAt      DateTime              @default(now()) @map("source_collected_at") @db.Timestamptz(3)
+  sourceLastCheckedAt    DateTime?             @map("source_last_checked_at") @db.Timestamptz(3)
+  sourceConfidenceScore  Int                   @default(0) @map("source_confidence_score")
+  verificationStatus     PhoneValidationStatus @default(UNVERIFIED) @map("verification_status")
+  extractionMethod       ExtractionMethod      @map("extraction_method")
+  phoneRaw               String?               @map("phone_raw") @db.VarChar(50)
+  phoneNormalized        String?               @map("phone_normalized") @db.VarChar(20)
+  email                  String?               @db.VarChar(320)
+  website                String?               @db.VarChar(2048)
+  googlePlaceId          String?               @map("google_place_id") @db.VarChar(255)
+  confidenceContribution Int                   @default(0) @map("confidence_contribution")
+  rawSourceMetadata      Json?                 @map("raw_source_metadata") @db.JsonB
+  createdAt              DateTime              @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt              DateTime              @updatedAt @map("updated_at") @db.Timestamptz(3)
+  lead                   Lead                  @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  approvedSource         ApprovedSource?       @relation(fields: [approvedSourceId], references: [id], onDelete: SetNull)
+
+  @@index([leadId, sourceCollectedAt])
+  @@index([approvedSourceId])
+  @@index([sourceKey, sourceRecordId])
+  @@index([phoneNormalized])
+  @@index([googlePlaceId])
+  @@map("lead_provenance")
+}
+
+model CsvImport {
+  id                String          @id @default(uuid()) @db.Uuid
+  userId            String          @map("user_id") @db.Uuid
+  approvedSourceId  String?         @map("approved_source_id") @db.Uuid
+  scrapingJobId     String?         @map("scraping_job_id") @db.Uuid
+  originalFilename  String          @map("original_filename") @db.VarChar(255)
+  sourceName        String          @map("source_name") @db.VarChar(150)
+  fileSha256        String          @map("file_sha256") @db.Char(64)
+  rightsConfirmedAt DateTime        @map("rights_confirmed_at") @db.Timestamptz(3)
+  status            CsvImportStatus @default(PENDING)
+  totalRows         Int             @default(0) @map("total_rows")
+  validRows         Int             @default(0) @map("valid_rows")
+  invalidRows       Int             @default(0) @map("invalid_rows")
+  duplicateRows     Int             @default(0) @map("duplicate_rows")
+  importedRows      Int             @default(0) @map("imported_rows")
+  headerMapping     Json?           @map("header_mapping") @db.JsonB
+  stagedRows        Json?           @map("staged_rows") @db.JsonB
+  errorReport       Json?           @map("error_report") @db.JsonB
+  startedAt         DateTime?       @map("started_at") @db.Timestamptz(3)
+  completedAt       DateTime?       @map("completed_at") @db.Timestamptz(3)
+  failedAt          DateTime?       @map("failed_at") @db.Timestamptz(3)
+  createdAt         DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt         DateTime        @updatedAt @map("updated_at") @db.Timestamptz(3)
+  user              User            @relation(fields: [userId], references: [id], onDelete: Restrict)
+  approvedSource    ApprovedSource? @relation(fields: [approvedSourceId], references: [id], onDelete: SetNull)
+  scrapingJob       ScrapingJob?    @relation(fields: [scrapingJobId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+  @@index([status, createdAt])
+  @@index([approvedSourceId])
+  @@index([scrapingJobId])
+  @@index([fileSha256])
+  @@map("csv_imports")
 }

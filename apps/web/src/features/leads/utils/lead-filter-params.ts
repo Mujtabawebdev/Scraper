@@ -62,10 +62,22 @@ export const parseLeadFilters = (
   const jobId = readUuidFilter(searchParams.get("jobId"));
   const rawSource = searchParams.get("source");
   const source =
-    rawSource === "fixture-business-directory" ||
-    rawSource === "permitted-http-directory"
+    rawSource === "google-places-api" ||
+    rawSource === "government-dataset" ||
+    rawSource === "licensed-csv-import" ||
+    rawSource === "meta-approved-api" ||
+    rawSource === "yelp-approved-api"
       ? rawSource
       : undefined;
+  const sourceType = readOptionalText(searchParams.get("sourceType"), 50);
+  const phoneValidationStatus = readOptionalText(
+    searchParams.get("phoneValidationStatus"),
+    50,
+  ) as LeadListFilters["phoneValidationStatus"];
+  const confidenceLevel = readOptionalText(
+    searchParams.get("confidenceLevel"),
+    20,
+  ) as LeadListFilters["confidenceLevel"];
   const category = readOptionalText(searchParams.get("category"), 150);
   const city = readOptionalText(searchParams.get("city"), 120);
   const state = readOptionalText(searchParams.get("state"), 100);
@@ -78,8 +90,11 @@ export const parseLeadFilters = (
   const createdFrom = validDateRange ? parsedCreatedFrom : undefined;
   const createdTo = validDateRange ? parsedCreatedTo : undefined;
   const hasPhone = readOptionalBoolean(searchParams.get("hasPhone"));
+  const hasValidPhone = readOptionalBoolean(searchParams.get("hasValidPhone"));
   const hasEmail = readOptionalBoolean(searchParams.get("hasEmail"));
   const hasWebsite = readOptionalBoolean(searchParams.get("hasWebsite"));
+  const lastVerifiedFrom = readDateFilter(searchParams.get("lastVerifiedFrom"));
+  const lastVerifiedTo = readDateFilter(searchParams.get("lastVerifiedTo"));
 
   return {
     page: readBoundedInteger(searchParams.get("page"), 1, 1_000_000),
@@ -89,14 +104,20 @@ export const parseLeadFilters = (
     ...(search ? { search } : {}),
     ...(jobId ? { jobId } : {}),
     ...(source ? { source } : {}),
+    ...(sourceType ? { sourceType } : {}),
+    ...(phoneValidationStatus ? { phoneValidationStatus } : {}),
+    ...(confidenceLevel ? { confidenceLevel } : {}),
     ...(category ? { category } : {}),
     ...(city ? { city } : {}),
     ...(state ? { state } : {}),
     ...(hasPhone !== undefined ? { hasPhone } : {}),
+    ...(hasValidPhone !== undefined ? { hasValidPhone } : {}),
     ...(hasEmail !== undefined ? { hasEmail } : {}),
     ...(hasWebsite !== undefined ? { hasWebsite } : {}),
     ...(createdFrom ? { createdFrom } : {}),
     ...(createdTo ? { createdTo } : {}),
+    ...(lastVerifiedFrom ? { lastVerifiedFrom } : {}),
+    ...(lastVerifiedTo ? { lastVerifiedTo } : {}),
   };
 };
 
@@ -113,11 +134,21 @@ export const serializeLeadFilters = (
   if (filters.search) params.set("search", filters.search);
   if (filters.jobId) params.set("jobId", filters.jobId);
   if (filters.source) params.set("source", filters.source);
+  if (filters.sourceType) params.set("sourceType", filters.sourceType);
+  if (filters.phoneValidationStatus) {
+    params.set("phoneValidationStatus", filters.phoneValidationStatus);
+  }
+  if (filters.confidenceLevel) {
+    params.set("confidenceLevel", filters.confidenceLevel);
+  }
   if (filters.category) params.set("category", filters.category);
   if (filters.city) params.set("city", filters.city);
   if (filters.state) params.set("state", filters.state);
   if (filters.hasPhone !== undefined) {
     params.set("hasPhone", String(filters.hasPhone));
+  }
+  if (filters.hasValidPhone !== undefined) {
+    params.set("hasValidPhone", String(filters.hasValidPhone));
   }
   if (filters.hasEmail !== undefined) {
     params.set("hasEmail", String(filters.hasEmail));
@@ -133,5 +164,11 @@ export const serializeLeadFilters = (
   }
   if (filters.createdFrom) params.set("createdFrom", filters.createdFrom);
   if (filters.createdTo) params.set("createdTo", filters.createdTo);
+  if (filters.lastVerifiedFrom) {
+    params.set("lastVerifiedFrom", filters.lastVerifiedFrom);
+  }
+  if (filters.lastVerifiedTo) {
+    params.set("lastVerifiedTo", filters.lastVerifiedTo);
+  }
   return params;
 };

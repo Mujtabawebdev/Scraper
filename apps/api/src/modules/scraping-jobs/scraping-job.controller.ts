@@ -37,6 +37,10 @@ const requireUserId = (request: Request): string => {
 const approvedSources = new Set([
   "fixture-business-directory",
   "permitted-http-directory",
+  "google-places-api",
+  "government-dataset",
+  "meta-approved-api",
+  "yelp-approved-api",
 ]);
 
 export const create = async (request: Request, response: Response): Promise<void> => {

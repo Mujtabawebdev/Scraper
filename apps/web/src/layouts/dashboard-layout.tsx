@@ -4,6 +4,7 @@ import {
   LogOut,
   Menu,
   Settings,
+  FileUp,
   ShieldCheck,
   UsersRound,
   X,
@@ -29,6 +30,7 @@ const navigationItems: readonly NavigationItem[] = [
   { icon: LayoutDashboard, label: "Overview", to: "/dashboard" },
   { icon: BriefcaseBusiness, label: "Jobs", to: "/dashboard/jobs" },
   { icon: UsersRound, label: "Leads", to: "/dashboard/leads" },
+  { icon: FileUp, label: "CSV import", to: "/dashboard/imports/csv" },
   { icon: Settings, label: "Settings", to: "/dashboard/settings" },
 ];
 

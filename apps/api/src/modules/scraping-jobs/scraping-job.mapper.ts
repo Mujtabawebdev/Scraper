@@ -23,7 +23,11 @@ const toPublicStatus = (status: ScrapingJobSummaryRecord["status"]): ScrapingJob
 const toPublicSource = (source: string): ApprovedScrapingSource => {
   if (
     source === "fixture-business-directory" ||
-    source === "permitted-http-directory"
+    source === "permitted-http-directory" ||
+    source === "google-places-api" ||
+    source === "government-dataset" ||
+    source === "meta-approved-api" ||
+    source === "yelp-approved-api"
   ) {
     return source;
   }
@@ -44,6 +48,7 @@ export const mapScrapingJobSummary = (
   failureCount: job.failureCount,
   duplicateCount: job.duplicateCount,
   progressPercentage: Math.min(100, Math.max(0, job.progressPercentage)),
+  pipelineStage: job.pipelineStage ?? "DISCOVER_BUSINESSES",
   createdAt: job.createdAt.toISOString(),
   startedAt: toIsoString(job.startedAt),
   completedAt: toIsoString(job.completedAt),
@@ -71,7 +76,9 @@ export const mapScrapingJobDetail = (
       (job.source === "fixture-business-directory" ||
         (job.source === "permitted-http-directory" &&
           env.SCRAPING_EXTERNAL_SOURCE_ENABLED &&
-          Boolean(env.SCRAPING_APPROVED_BASE_URL))),
+          Boolean(env.SCRAPING_APPROVED_BASE_URL)) ||
+        (job.source === "google-places-api" &&
+          Boolean(env.GOOGLE_PLACES_API_KEY))),
     retryOfJobId: job.retryOfJobId,
   };
 };

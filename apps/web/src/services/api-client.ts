@@ -24,6 +24,22 @@ export const apiErrorCodes = [
   "SCRAPING_JOB_NOT_RETRYABLE",
   "APPROVED_SOURCE_REQUIRED",
   "SOURCE_NOT_PERMITTED",
+  "SOURCE_NOT_CONFIGURED",
+  "SOURCE_DISABLED",
+  "API_CREDENTIALS_MISSING",
+  "API_QUOTA_EXCEEDED",
+  "SOURCE_RATE_LIMITED",
+  "ROBOTS_ACCESS_DISALLOWED",
+  "CAPTCHA_DETECTED",
+  "LOGIN_WALL_DETECTED",
+  "CONSENT_WALL_DETECTED",
+  "UNSAFE_URL",
+  "CSV_IMPORT_INVALID",
+  "CSV_IMPORT_LIMIT_EXCEEDED",
+  "CSV_IMPORT_NOT_FOUND",
+  "PHONE_INVALID",
+  "PHONE_NOT_FOUND",
+  "LEAD_PROVENANCE_NOT_FOUND",
   "QUEUE_UNAVAILABLE",
   "LEAD_NOT_FOUND",
   "EXPORT_LIMIT_EXCEEDED",
@@ -257,6 +273,9 @@ const refreshClient = axios.create({
 });
 
 apiClient.interceptors.request.use((request) => {
+  if (request.data instanceof FormData) {
+    request.headers.delete("Content-Type");
+  }
   const accessToken = authStateBridge?.getAccessToken();
   if (accessToken) {
     request.headers.set("Authorization", `Bearer ${accessToken}`);

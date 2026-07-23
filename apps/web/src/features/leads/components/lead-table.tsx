@@ -27,12 +27,16 @@ export function LeadTable({ leads, returnTo }: LeadTableProps) {
             {[
               "Business name",
               "Phone",
+              "Phone status",
+              "Confidence",
               "Email",
               "Website",
               "Category",
               "City",
               "State",
               "Source",
+              "Verified",
+              "Provenance",
               "Collected at",
               "Actions",
             ].map((heading) => (
@@ -69,6 +73,17 @@ export function LeadTable({ leads, returnTo }: LeadTableProps) {
                   ) : (
                     <OptionalValue value={null} />
                   )}
+                </td>
+                <td className="whitespace-nowrap px-4 py-4 text-sm">
+                  <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-700">
+                    {lead.phoneValidationStatus.replaceAll("_", " ")}
+                  </span>
+                </td>
+                <td className="whitespace-nowrap px-4 py-4 text-sm">
+                  <span className="font-semibold">{lead.confidenceScore}</span>
+                  <span className="ml-1 text-xs text-slate-500">
+                    {lead.confidenceLevel}
+                  </span>
                 </td>
                 <td className="max-w-64 px-4 py-4 text-sm">
                   {lead.email ? (
@@ -108,12 +123,16 @@ export function LeadTable({ leads, returnTo }: LeadTableProps) {
                   <OptionalValue value={lead.state} />
                 </td>
                   <td className="whitespace-nowrap px-4 py-4 text-sm text-slate-600">
-                    {lead.source === "fixture-business-directory"
-                      ? "Fixture directory"
-                      : lead.source === "permitted-http-directory"
-                        ? "Approved development directory"
-                        : lead.source}
+                    {lead.sourceType.replaceAll("_", " ")}
                   </td>
+                <td className="whitespace-nowrap px-4 py-4 text-sm text-slate-600">
+                  {lead.lastVerifiedAt
+                    ? formatDateTime(lead.lastVerifiedAt)
+                    : "Not verified"}
+                </td>
+                <td className="whitespace-nowrap px-4 py-4 text-sm text-slate-600">
+                  {lead.provenanceCount}
+                </td>
                 <td className="whitespace-nowrap px-4 py-4 text-sm text-slate-600">
                   {formatDateTime(lead.createdAt)}
                 </td>

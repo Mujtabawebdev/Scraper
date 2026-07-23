@@ -12,11 +12,14 @@ export type AdminUserStatus = (typeof adminUserStatuses)[number];
 export const approvedSourceTypes = [
   "FIXTURE",
   "OFFICIAL_API",
+  "GOOGLE_PLACES_API",
   "PUBLIC_DIRECTORY",
   "GOVERNMENT_DATASET",
   "OFFICIAL_WEBSITE",
   "LICENSED_DATASET",
   "CSV_IMPORT",
+  "META_APPROVED_API",
+  "YELP_APPROVED_API",
 ] as const;
 export type ApprovedSourceType = (typeof approvedSourceTypes)[number];
 
@@ -153,6 +156,21 @@ export type ApprovedSource = {
   termsReviewedAt: string | null;
   reviewNotes: string | null;
   blockedReason: string | null;
+  lastHealthCheckAt: string | null;
+  lastHealthCheckStatus:
+    | "NOT_CHECKED"
+    | "HEALTHY"
+    | "DEGRADED"
+    | "UNAVAILABLE"
+    | "CONFIGURATION_MISSING"
+    | "QUOTA_LIMITED"
+    | "BLOCKED";
+  lastHealthCheckMessage: string | null;
+  lastHealthCheckLatencyMs: number | null;
+  lastSuccessfulRequestAt: string | null;
+  recentFailureCount: number;
+  quotaLimitedUntil: string | null;
+  credentialConfigured: boolean;
   createdAt: string;
   updatedAt: string;
   createdBy: AdminOwnerSummary | null;

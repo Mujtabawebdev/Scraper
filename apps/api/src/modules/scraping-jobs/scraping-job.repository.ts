@@ -18,6 +18,7 @@ export const scrapingJobSummarySelect = {
   failureCount: true,
   duplicateCount: true,
   progressPercentage: true,
+  pipelineStage: true,
   createdAt: true,
   startedAt: true,
   completedAt: true,
@@ -48,13 +49,27 @@ const retrySourceSelect = {
   category: true,
 } satisfies Prisma.ScrapingJobSelect;
 
-export type ScrapingJobSummaryRecord = Prisma.ScrapingJobGetPayload<{
+type GeneratedScrapingJobSummaryRecord = Prisma.ScrapingJobGetPayload<{
   select: typeof scrapingJobSummarySelect;
 }>;
 
-export type ScrapingJobDetailRecord = Prisma.ScrapingJobGetPayload<{
+export type ScrapingJobSummaryRecord = Omit<
+  GeneratedScrapingJobSummaryRecord,
+  "pipelineStage"
+> & {
+  pipelineStage?: GeneratedScrapingJobSummaryRecord["pipelineStage"];
+};
+
+type GeneratedScrapingJobDetailRecord = Prisma.ScrapingJobGetPayload<{
   select: typeof scrapingJobDetailSelect;
 }>;
+
+export type ScrapingJobDetailRecord = Omit<
+  GeneratedScrapingJobDetailRecord,
+  "pipelineStage"
+> & {
+  pipelineStage?: GeneratedScrapingJobDetailRecord["pipelineStage"];
+};
 
 export type ScrapingJobRetrySourceRecord = Prisma.ScrapingJobGetPayload<{
   select: typeof retrySourceSelect;
@@ -121,6 +136,15 @@ export const createScrapingJobRecord = async (
       ...(data.retryOfJobId ? { retryOfJobId: data.retryOfJobId } : {}),
     },
     select: scrapingJobSummarySelect,
+  });
+
+export const countRecentOwnedJobsBySource = async (
+  userId: string,
+  source: string,
+  since: Date,
+): Promise<number> =>
+  prisma.scrapingJob.count({
+    where: { userId, source, createdAt: { gte: since } },
   });
 
 export const markScrapingJobQueued = async (

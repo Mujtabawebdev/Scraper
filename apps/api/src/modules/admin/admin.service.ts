@@ -43,7 +43,10 @@ import {
   updateAdminUserRoleTransaction,
   updateAdminUserStatusTransaction,
   updateApprovedSource,
+  recordSourceHealthCheck,
 } from "./admin.repository.js";
+import { env } from "../../config/env.js";
+import { isSourceCredentialConfigured } from "../sources/source-configuration.js";
 import type {
   AdminActionContext,
   CancelAdminJobInput,
@@ -200,10 +203,104 @@ const requireSuperAdmin = (context: AdminActionContext): void => {
 };
 
 const hasConfiguredCredential = (sourceKey: string): boolean => {
-  const variableName = `SOURCE_${sourceKey
-    .toUpperCase()
-    .replace(/[^A-Z0-9]+/g, "_")}_API_KEY`;
-  return Boolean(process.env[variableName]?.trim());
+  return isSourceCredentialConfigured(sourceKey);
+};
+
+type HealthCheckResult = Parameters<typeof recordSourceHealthCheck>[2];
+
+const runGoogleHealthCheck = async (): Promise<HealthCheckResult> => {
+  if (!env.GOOGLE_PLACES_API_KEY) {
+    return {
+      status: "CONFIGURATION_MISSING",
+      message: "Google Places API credentials are not configured",
+    };
+  }
+  const startedAt = Date.now();
+  try {
+    const response = await fetch(
+      "https://places.googleapis.com/v1/places:searchText",
+      {
+        method: "POST",
+        signal: AbortSignal.timeout(env.GOOGLE_PLACES_REQUEST_TIMEOUT_MS),
+        headers: {
+          "content-type": "application/json",
+          "x-goog-api-key": env.GOOGLE_PLACES_API_KEY,
+          "x-goog-fieldmask": "places.id",
+        },
+        body: JSON.stringify({
+          textQuery: "business in United States",
+          pageSize: 1,
+          regionCode: env.GOOGLE_PLACES_REGION,
+          languageCode: env.GOOGLE_PLACES_LANGUAGE,
+        }),
+      },
+    );
+    const latencyMs = Date.now() - startedAt;
+    await response.body?.cancel();
+    if (response.ok) {
+      return {
+        status: "HEALTHY",
+        message: "Google Places responded successfully",
+        latencyMs,
+      };
+    }
+    if (response.status === 429) {
+      return {
+        status: "QUOTA_LIMITED",
+        message: "Google Places quota is currently unavailable",
+        latencyMs,
+      };
+    }
+    if (response.status === 401 || response.status === 403) {
+      return {
+        status: "UNAVAILABLE",
+        message: "Google Places credentials are invalid or unauthorized",
+        latencyMs,
+      };
+    }
+    return {
+      status: "DEGRADED",
+      message: "Google Places returned an unsuccessful health response",
+      latencyMs,
+    };
+  } catch {
+    return {
+      status: "UNAVAILABLE",
+      message: "Google Places health check could not reach the provider",
+      latencyMs: Date.now() - startedAt,
+    };
+  }
+};
+
+export const healthCheckAdminSource = async (
+  context: AdminActionContext,
+  sourceId: string,
+): Promise<ApprovedSource> => {
+  const source = await getAdminSource(sourceId);
+  let result: HealthCheckResult;
+  if (source.status === "BLOCKED") {
+    result = { status: "BLOCKED", message: "Source is blocked by policy" };
+  } else if (source.key === "google-places-api") {
+    result = await runGoogleHealthCheck();
+  } else if (
+    source.key === "meta-approved-api" ||
+    source.key === "yelp-approved-api" ||
+    source.key === "government-dataset"
+  ) {
+    result = {
+      status: "CONFIGURATION_MISSING",
+      message: "No reviewed provider adapter is enabled",
+    };
+  } else {
+    result = {
+      status: "HEALTHY",
+      message: "Local source policy configuration is valid",
+      latencyMs: 0,
+    };
+  }
+  return mapApprovedSource(
+    await recordSourceHealthCheck(context, sourceId, result),
+  );
 };
 
 const validateSourceBaseUrl = (baseUrl: string | null | undefined): void => {

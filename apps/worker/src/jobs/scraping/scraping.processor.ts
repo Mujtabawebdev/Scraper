@@ -1,4 +1,5 @@
 import type {
+  AcquisitionStage,
   ScrapingJobName,
   ScrapingJobQueueData,
   ScrapingJobQueueResult,
@@ -27,6 +28,10 @@ const SOURCE_KEY_BY_PUBLIC_SOURCE: Record<
 > = {
   "fixture-business-directory": "fixture-directory",
   "permitted-http-directory": "permitted-http-directory",
+  "google-places-api": "google-places-api",
+  "government-dataset": "government-dataset",
+  "meta-approved-api": "meta-approved-api",
+  "yelp-approved-api": "yelp-approved-api",
 };
 const PUBLIC_SOURCE_BY_SOURCE_KEY: Record<
   ScrapingSourceKey,
@@ -34,15 +39,29 @@ const PUBLIC_SOURCE_BY_SOURCE_KEY: Record<
 > = {
   "fixture-directory": "fixture-business-directory",
   "permitted-http-directory": "permitted-http-directory",
+  "google-places-api": "google-places-api",
+  "government-dataset": "government-dataset",
+  "meta-approved-api": "meta-approved-api",
+  "yelp-approved-api": "yelp-approved-api",
 };
 
 const isScrapingSourceKey = (value: unknown): value is ScrapingSourceKey =>
-  value === "fixture-directory" || value === "permitted-http-directory";
+  value === "fixture-directory" ||
+  value === "permitted-http-directory" ||
+  value === "google-places-api" ||
+  value === "government-dataset" ||
+  value === "meta-approved-api" ||
+  value === "yelp-approved-api";
 
 const isPublicSource = (
   value: unknown,
 ): value is ScrapingJobQueueData["source"] =>
-  value === "fixture-business-directory" || value === "permitted-http-directory";
+  value === "fixture-business-directory" ||
+  value === "permitted-http-directory" ||
+  value === "google-places-api" ||
+  value === "government-dataset" ||
+  value === "meta-approved-api" ||
+  value === "yelp-approved-api";
 
 const toQueueResult = (
   scrapingJobId: string,
@@ -77,6 +96,16 @@ export const getSafeScrapingFailureMessage = (error: unknown): string => {
       INVALID_CONTENT_TYPE: "The approved source returned an unsupported response",
       RESPONSE_TOO_LARGE: "The approved source response exceeded the safe size limit",
       REDIRECT_LIMIT_EXCEEDED: "The approved source exceeded the safe redirect limit",
+      SOURCE_NOT_CONFIGURED: "The selected source is not configured",
+      API_CREDENTIALS_MISSING: "The selected source credentials are unavailable",
+      API_QUOTA_EXCEEDED: "The selected source quota is currently unavailable",
+      SOURCE_RATE_LIMITED: "The selected source rate limit is currently active",
+      ROBOTS_ACCESS_DISALLOWED: "The website robots policy disallows access",
+      CAPTCHA_DETECTED: "The source requires administrator review",
+      LOGIN_WALL_DETECTED: "The source requires authentication and cannot be processed",
+      CONSENT_WALL_DETECTED: "The source presented a consent wall",
+      AUTOMATED_ACCESS_NOT_ALLOWED: "The source prohibits automated access",
+      UNSAFE_URL: "The discovered website URL was rejected by safety controls",
     };
     return safeMessages[error.code] ?? "The approved source could not be processed";
   }
@@ -358,6 +387,37 @@ export const processScrapingJob = async (
           await job.updateProgress(nextProgress);
           return true;
         },
+        onStage: async (
+          stage: AcquisitionStage,
+          progress,
+          counts,
+        ) => {
+          const nextProgress = Math.min(
+            Math.max(Math.round(progress), lastProgress),
+            99,
+          );
+          const updated = await prisma.scrapingJob.updateMany({
+            where: {
+              id: databaseJob.id,
+              userId: job.data.requestedById,
+              status: "RUNNING",
+            },
+            data: {
+              ...counts,
+              progressPercentage: nextProgress,
+              pipelineStage: stage,
+            },
+          });
+          if (updated.count === 0) {
+            if (await getCancellationState()) return false;
+            throw new UnrecoverableError(
+              "SCRAPING_JOB_STAGE_UPDATE_REJECTED",
+            );
+          }
+          lastProgress = nextProgress;
+          await job.updateProgress(nextProgress);
+          return true;
+        },
       },
     );
 
@@ -382,6 +442,7 @@ export const processScrapingJob = async (
         status: "COMPLETED",
         ...finalCounts,
         progressPercentage: 100,
+        pipelineStage: "COMPLETE_JOB",
         completedAt,
         errorMessage: null,
       },
@@ -405,13 +466,18 @@ export const processScrapingJob = async (
     if (activeSourceKey && error instanceof ScraperError) {
       const blockedCodes = new Set([
         "ROBOTS_DISALLOWED",
+        "ROBOTS_ACCESS_DISALLOWED",
         "SOURCE_AUTHORIZATION_DENIED",
+        "SOURCE_ACCESS_FORBIDDEN",
         "AUTOMATION_PROHIBITED",
+        "AUTOMATED_ACCESS_NOT_ALLOWED",
       ]);
       const reviewCodes = new Set([
         "CAPTCHA_DETECTED",
         "LOGIN_WALL",
+        "LOGIN_WALL_DETECTED",
         "CONSENT_WALL",
+        "CONSENT_WALL_DETECTED",
         "RATE_LIMIT_REJECTED",
       ]);
       if (blockedCodes.has(error.code)) {

@@ -4,9 +4,14 @@ export {
 } from "./job-lead.types.js";
 export type {
   ApprovedScrapingSource,
+  AvailableSource,
+  AvailableSourceState,
   CreateScrapingJobRequest,
+  CsvImportStatus,
+  CsvImportSummary,
   DashboardSummary,
   LeadDetail,
+  LeadProvenance,
   LeadSummary,
   PaginationMetadata,
   ScrapingJobDetail,

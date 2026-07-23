@@ -19,6 +19,7 @@ import type {
   AdminUserSummaryRecord,
   ApprovedSourceRecord,
 } from "./admin.repository.js";
+import { isSourceCredentialConfigured } from "../sources/source-configuration.js";
 
 const toIsoString = (value: Date | null): string | null =>
   value?.toISOString() ?? null;
@@ -215,6 +216,15 @@ export const mapApprovedSource = (
   termsReviewedAt: toIsoString(source.termsReviewedAt),
   reviewNotes: source.reviewNotes,
   blockedReason: source.blockedReason,
+  lastHealthCheckAt: toIsoString(source.lastHealthCheckAt),
+  lastHealthCheckStatus: source.lastHealthCheckStatus,
+  lastHealthCheckMessage: source.lastHealthCheckMessage,
+  lastHealthCheckLatencyMs: source.lastHealthCheckLatencyMs,
+  lastSuccessfulRequestAt: toIsoString(source.lastSuccessfulRequestAt),
+  recentFailureCount: source.recentFailureCount,
+  quotaLimitedUntil: toIsoString(source.quotaLimitedUntil),
+  credentialConfigured:
+    !source.requiresApiKey || isSourceCredentialConfigured(source.key),
   createdAt: source.createdAt.toISOString(),
   updatedAt: source.updatedAt.toISOString(),
   createdBy: source.createdBy,

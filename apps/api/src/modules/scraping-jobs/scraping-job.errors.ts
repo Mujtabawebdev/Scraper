@@ -6,6 +6,9 @@ export type ScrapingJobErrorCode =
   | "SCRAPING_JOB_NOT_RETRYABLE"
   | "APPROVED_SOURCE_REQUIRED"
   | "SOURCE_NOT_PERMITTED"
+  | "SOURCE_NOT_CONFIGURED"
+  | "API_CREDENTIALS_MISSING"
+  | "SOURCE_RATE_LIMITED"
   | "QUEUE_UNAVAILABLE";
 
 export class ScrapingJobError extends AppError {
@@ -46,6 +49,27 @@ export const sourceNotPermittedError = (): ScrapingJobError =>
     400,
     "SOURCE_NOT_PERMITTED",
     "Requested scraping source is not enabled",
+  );
+
+export const sourceNotConfiguredError = (): ScrapingJobError =>
+  new ScrapingJobError(
+    503,
+    "SOURCE_NOT_CONFIGURED",
+    "Requested source is not configured",
+  );
+
+export const apiCredentialsMissingError = (): ScrapingJobError =>
+  new ScrapingJobError(
+    503,
+    "API_CREDENTIALS_MISSING",
+    "Requested source credentials are unavailable",
+  );
+
+export const sourceRateLimitedError = (): ScrapingJobError =>
+  new ScrapingJobError(
+    429,
+    "SOURCE_RATE_LIMITED",
+    "Too many jobs were created for this source; please try again later",
   );
 
 export const queueUnavailableError = (): ScrapingJobError =>

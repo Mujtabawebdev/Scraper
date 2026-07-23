@@ -3,6 +3,7 @@ import { env } from "./config/env.js";
 import { disconnectDatabase } from "./infrastructure/database/prisma.js";
 import { disconnectWorkerRedis } from "./infrastructure/redis/redis.connection.js";
 import { scrapingWorker } from "./jobs/scraping/scraping.worker.js";
+import { csvImportWorker } from "./jobs/csv-import/csv-import.worker.js";
 
 let isShuttingDown = false;
 
@@ -13,7 +14,7 @@ const shutdown = async (reason: string, exitCode = 0): Promise<void> => {
 
   let finalExitCode = exitCode;
   try {
-    await scrapingWorker.close();
+    await Promise.all([scrapingWorker.close(), csvImportWorker.close()]);
     await disconnectWorkerRedis();
     await disconnectDatabase();
     logger.info("Worker resources disconnected");
@@ -40,6 +41,10 @@ process.on("unhandledRejection", (reason) => {
 });
 
 logger.info(
-  { queue: env.SCRAPING_QUEUE_NAME, concurrency: env.WORKER_CONCURRENCY },
-  "Scraping worker started",
+  {
+    scrapingQueue: env.SCRAPING_QUEUE_NAME,
+    csvImportQueue: env.CSV_IMPORT_QUEUE_NAME,
+    concurrency: env.WORKER_CONCURRENCY,
+  },
+  "Acquisition workers started",
 );

@@ -2,6 +2,7 @@ import { Router } from "express";
 
 import { authenticate } from "../../common/middleware/authenticate.middleware.js";
 import { authorizeRoles } from "../../common/middleware/authorize.middleware.js";
+import { sourceHealthCheckRateLimiter } from "../../common/middleware/resource-rate-limit.middleware.js";
 import {
   auditLogs,
   cancelJob,
@@ -9,6 +10,7 @@ import {
   disableSource,
   jobDetail,
   jobs,
+  healthCheckSource,
   markSourceReviewRequired,
   sourceDetail,
   sources,
@@ -43,6 +45,11 @@ adminRouter.get("/audit-logs", auditLogs);
 
 adminRouter.get("/sources", sources);
 adminRouter.get("/sources/:sourceId", sourceDetail);
+adminRouter.post(
+  "/sources/:sourceId/health-check",
+  sourceHealthCheckRateLimiter,
+  healthCheckSource,
+);
 adminRouter.post("/sources", authorizeRoles("SUPER_ADMIN"), createSource);
 adminRouter.patch(
   "/sources/:sourceId",

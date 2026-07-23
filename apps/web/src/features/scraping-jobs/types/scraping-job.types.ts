@@ -25,19 +25,12 @@ export const SCRAPING_JOB_STATUSES = [
   "CANCELLED",
 ] as const satisfies readonly ScrapingJobStatus[];
 
-export const APPROVED_SOURCE_OPTIONS = [
-  {
-    label: "Fixture business directory",
-    value: "fixture-business-directory",
-  },
-  {
-    label: "Approved development directory (server-enabled)",
-    value: "permitted-http-directory",
-  },
-] as const satisfies ReadonlyArray<{
-  label: string;
-  value: ApprovedScrapingSource;
-}>;
+export const REAL_JOB_SOURCE_VALUES = [
+  "google-places-api",
+  "government-dataset",
+  "meta-approved-api",
+  "yelp-approved-api",
+] as const satisfies readonly ApprovedScrapingSource[];
 
 export const JOB_SORT_FIELDS = [
   "createdAt",

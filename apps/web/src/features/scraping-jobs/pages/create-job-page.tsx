@@ -1,6 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { ArrowLeft, BriefcaseBusiness, ShieldCheck } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { Link, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
@@ -28,7 +28,8 @@ import {
   type CreateScrapingJobFormInput,
   type CreateScrapingJobFormValues,
 } from "../schemas/scraping-job.schemas";
-import { APPROVED_SOURCE_OPTIONS } from "../types/scraping-job.types";
+import { useAvailableSources } from "../../sources/hooks/use-available-sources";
+import type { ApprovedScrapingSource } from "../types/scraping-job.types";
 
 const jobFieldNames = [
   "source",
@@ -40,12 +41,15 @@ const jobFieldNames = [
 export function CreateJobPage() {
   const navigate = useNavigate();
   const createMutation = useCreateScrapingJob();
+  const sourcesQuery = useAvailableSources();
   const [generalError, setGeneralError] = useState<string | null>(null);
   const {
     formState: { errors, isSubmitting },
     handleSubmit,
     register,
     setError,
+    setValue,
+    watch,
   } = useForm<
     CreateScrapingJobFormInput,
     unknown,
@@ -53,12 +57,38 @@ export function CreateJobPage() {
   >({
     resolver: zodResolver(createScrapingJobSchema),
     defaultValues: {
-      source: "fixture-business-directory",
+      source: "google-places-api",
       searchQuery: "",
       location: "",
       requestedLimit: 25,
     },
   });
+  const sourceValue = watch("source");
+  const realSources =
+    sourcesQuery.data?.filter((source) =>
+      [
+        "google-places-api",
+        "government-dataset",
+        "meta-approved-api",
+        "yelp-approved-api",
+      ].includes(source.key),
+    ) ?? [];
+  const availableSources = realSources.filter(
+    (source) => source.canCreateJob && source.state === "AVAILABLE",
+  );
+
+  useEffect(() => {
+    if (
+      availableSources.length > 0 &&
+      !availableSources.some((source) => source.key === sourceValue)
+    ) {
+      setValue(
+        "source",
+        availableSources[0]!.key as ApprovedScrapingSource,
+        { shouldValidate: true },
+      );
+    }
+  }, [availableSources, setValue, sourceValue]);
   const isPending = isSubmitting || createMutation.isPending;
 
   const onSubmit = async (
@@ -101,8 +131,8 @@ export function CreateJobPage() {
               Create scraping job
             </h1>
             <p className="mt-2 text-slate-600">
-              Queue a controlled collection run from an approved development
-              source.
+              Queue a controlled real-data collection from an approved,
+              configured source.
             </p>
           </div>
         </div>
@@ -111,9 +141,10 @@ export function CreateJobPage() {
       <Alert title="Permitted source only" variant="info">
         <span className="inline-flex items-start gap-2">
           <ShieldCheck aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
-          The fixture directory uses fictional local data. The approved
-          development directory requires server-side enablement and a fixed
-          administrator-configured origin. Arbitrary URLs are not accepted.
+          Fixture data is hidden outside automated or explicit test mode.
+          Credentials stay server-side, arbitrary URLs are not accepted, and
+          official website enrichment follows source policy, robots and SSRF
+          controls.
         </span>
       </Alert>
 
@@ -147,12 +178,32 @@ export function CreateJobPage() {
                 id="job-source"
                 invalid={Boolean(errors.source)}
               >
-                {APPROVED_SOURCE_OPTIONS.map((source) => (
-                  <option key={source.value} value={source.value}>
-                    {source.label}
+                {realSources.map((source) => (
+                  <option
+                    disabled={!source.canCreateJob}
+                    key={source.key}
+                    value={source.key}
+                  >
+                    {source.displayName} · {source.state.replaceAll("_", " ")}
                   </option>
                 ))}
               </Select>
+              {sourcesQuery.isLoading ? (
+                <p className="mt-1.5 text-xs text-slate-500">
+                  Loading real source availability…
+                </p>
+              ) : null}
+              {sourcesQuery.isError ? (
+                <p className="mt-1.5 text-xs text-red-700">
+                  Source availability could not be loaded.
+                </p>
+              ) : null}
+              {!sourcesQuery.isLoading && availableSources.length === 0 ? (
+                <p className="mt-1.5 text-xs text-amber-700">
+                  No real source is currently available. An administrator must
+                  complete provider configuration and policy review.
+                </p>
+              ) : null}
               <FormFieldError
                 id="job-source-error"
                 message={errors.source?.message}
@@ -241,6 +292,7 @@ export function CreateJobPage() {
                 isLoading={isPending}
                 loadingText="Queueing job..."
                 type="submit"
+                disabled={isPending || availableSources.length === 0}
               >
                 Queue scraping job
               </Button>

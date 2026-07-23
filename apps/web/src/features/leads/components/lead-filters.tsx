@@ -26,14 +26,20 @@ type OptionalLeadFilter =
   | "search"
   | "jobId"
   | "source"
+  | "sourceType"
+  | "phoneValidationStatus"
+  | "confidenceLevel"
   | "category"
   | "city"
   | "state"
   | "hasPhone"
+  | "hasValidPhone"
   | "hasEmail"
   | "hasWebsite"
   | "createdFrom"
-  | "createdTo";
+  | "createdTo"
+  | "lastVerifiedFrom"
+  | "lastVerifiedTo";
 
 const withoutOptionalFilter = (
   filters: LeadListFilters,
@@ -78,11 +84,16 @@ export function LeadFilters({
     key:
       | "jobId"
       | "source"
+      | "sourceType"
+      | "phoneValidationStatus"
+      | "confidenceLevel"
       | "category"
       | "city"
       | "state"
       | "createdFrom"
-      | "createdTo",
+      | "createdTo"
+      | "lastVerifiedFrom"
+      | "lastVerifiedTo",
     value: string,
   ) => {
     const next = withoutOptionalFilter(filters, key);
@@ -95,7 +106,7 @@ export function LeadFilters({
   };
 
   const updateBooleanFilter = (
-    key: "hasPhone" | "hasEmail" | "hasWebsite",
+    key: "hasPhone" | "hasValidPhone" | "hasEmail" | "hasWebsite",
     value: string,
   ) => {
     const next = withoutOptionalFilter(filters, key);
@@ -111,14 +122,20 @@ export function LeadFilters({
     Boolean(filters.search) ||
     Boolean(filters.jobId) ||
     Boolean(filters.source) ||
+    Boolean(filters.sourceType) ||
+    Boolean(filters.phoneValidationStatus) ||
+    Boolean(filters.confidenceLevel) ||
     Boolean(filters.category) ||
     Boolean(filters.city) ||
     Boolean(filters.state) ||
     filters.hasPhone !== undefined ||
+    filters.hasValidPhone !== undefined ||
     filters.hasEmail !== undefined ||
     filters.hasWebsite !== undefined ||
     Boolean(filters.createdFrom) ||
     Boolean(filters.createdTo) ||
+    Boolean(filters.lastVerifiedFrom) ||
+    Boolean(filters.lastVerifiedTo) ||
     filters.sortBy !== DEFAULT_LEAD_FILTERS.sortBy ||
     filters.sortOrder !== DEFAULT_LEAD_FILTERS.sortOrder ||
     filters.pageSize !== DEFAULT_LEAD_FILTERS.pageSize;
@@ -206,13 +223,76 @@ export function LeadFilters({
             value={filters.source ?? ""}
           >
             <option value="">All sources</option>
-              <option value="fixture-business-directory">
-                Fixture business directory
-              </option>
-              <option value="permitted-http-directory">
-                Approved development directory
-              </option>
+              <option value="google-places-api">Google Places API</option>
+              <option value="government-dataset">Government dataset</option>
+              <option value="licensed-csv-import">Licensed CSV import</option>
+              <option value="meta-approved-api">Meta approved API</option>
+              <option value="yelp-approved-api">Yelp approved API</option>
             </Select>
+        </div>
+        <div>
+          <Label htmlFor="lead-source-type-filter">Source type</Label>
+          <Select
+            className="mt-1.5"
+            disabled={disabled}
+            id="lead-source-type-filter"
+            onChange={(event) =>
+              updateTextFilter("sourceType", event.target.value)
+            }
+            value={filters.sourceType ?? ""}
+          >
+            <option value="">All source types</option>
+            <option value="COMPANY_WEBSITE">Official website</option>
+            <option value="GOOGLE_PLACES_API">Google Places API</option>
+            <option value="GOVERNMENT_DATASET">Government dataset</option>
+            <option value="CSV_IMPORT">CSV import</option>
+            <option value="BUSINESS_DIRECTORY">Public directory</option>
+          </Select>
+        </div>
+        <div>
+          <Label htmlFor="lead-phone-status-filter">Phone status</Label>
+          <Select
+            className="mt-1.5"
+            disabled={disabled}
+            id="lead-phone-status-filter"
+            onChange={(event) =>
+              updateTextFilter("phoneValidationStatus", event.target.value)
+            }
+            value={filters.phoneValidationStatus ?? ""}
+          >
+            <option value="">All phone statuses</option>
+            {[
+              "VALID",
+              "POSSIBLE",
+              "INVALID",
+              "PLACEHOLDER",
+              "UNVERIFIED",
+              "NO_PHONE_FOUND",
+            ].map((status) => (
+              <option key={status} value={status}>
+                {status.replaceAll("_", " ")}
+              </option>
+            ))}
+          </Select>
+        </div>
+        <div>
+          <Label htmlFor="lead-confidence-filter">Confidence</Label>
+          <Select
+            className="mt-1.5"
+            disabled={disabled}
+            id="lead-confidence-filter"
+            onChange={(event) =>
+              updateTextFilter("confidenceLevel", event.target.value)
+            }
+            value={filters.confidenceLevel ?? ""}
+          >
+            <option value="">All confidence levels</option>
+            {["HIGH", "MEDIUM", "LOW", "VERY_LOW"].map((level) => (
+              <option key={level} value={level}>
+                {level.replaceAll("_", " ")}
+              </option>
+            ))}
+          </Select>
         </div>
         <div>
           <Label htmlFor="lead-category-filter">Category</Label>
@@ -254,6 +334,7 @@ export function LeadFilters({
         </div>
         {[
           ["hasPhone", "Has phone"],
+          ["hasValidPhone", "Has valid phone"],
           ["hasEmail", "Has email"],
           ["hasWebsite", "Has website"],
         ].map(([key, label]) => (
@@ -265,17 +346,31 @@ export function LeadFilters({
               id={`lead-${key}-filter`}
               onChange={(event) =>
                 updateBooleanFilter(
-                  key as "hasPhone" | "hasEmail" | "hasWebsite",
+                  key as
+                    | "hasPhone"
+                    | "hasValidPhone"
+                    | "hasEmail"
+                    | "hasWebsite",
                   event.target.value,
                 )
               }
               value={
-                filters[key as "hasPhone" | "hasEmail" | "hasWebsite"] ===
+                filters[
+                  key as
+                    | "hasPhone"
+                    | "hasValidPhone"
+                    | "hasEmail"
+                    | "hasWebsite"
+                ] ===
                 undefined
                   ? ""
                   : String(
                       filters[
-                        key as "hasPhone" | "hasEmail" | "hasWebsite"
+                        key as
+                          | "hasPhone"
+                          | "hasValidPhone"
+                          | "hasEmail"
+                          | "hasWebsite"
                       ],
                     )
               }
@@ -377,6 +472,32 @@ export function LeadFilters({
             }
             type="date"
             value={filters.createdTo ?? ""}
+          />
+        </div>
+        <div>
+          <Label htmlFor="lead-verified-from">Verified from</Label>
+          <Input
+            className="mt-1.5"
+            disabled={disabled}
+            id="lead-verified-from"
+            onChange={(event) =>
+              updateTextFilter("lastVerifiedFrom", event.target.value)
+            }
+            type="date"
+            value={filters.lastVerifiedFrom ?? ""}
+          />
+        </div>
+        <div>
+          <Label htmlFor="lead-verified-to">Verified to</Label>
+          <Input
+            className="mt-1.5"
+            disabled={disabled}
+            id="lead-verified-to"
+            onChange={(event) =>
+              updateTextFilter("lastVerifiedTo", event.target.value)
+            }
+            type="date"
+            value={filters.lastVerifiedTo ?? ""}
           />
         </div>
       </div>
