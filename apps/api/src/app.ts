@@ -15,6 +15,7 @@ import { scrapingJobRouter } from "./modules/scraping-jobs/scraping-job.routes.j
 import { leadRouter } from "./modules/leads/lead.routes.js";
 import { sourceRouter } from "./modules/sources/source.routes.js";
 import { csvImportRouter } from "./modules/imports/csv-import.routes.js";
+import { adminQualityRouter, leadQualityRouter } from "./modules/lead-quality/lead-quality.routes.js";
 
 export const app = express();
 
@@ -49,9 +50,12 @@ app.use("/api/v1/auth", authRouter);
 app.use("/api/v1/sources", sourceRouter);
 app.use("/api/v1/imports", csvImportRouter);
 app.use("/api/v1/admin", adminRouter);
+app.use("/api/v1/admin", adminQualityRouter);
 app.use("/api/v1/scraping-jobs", scrapingJobRouter);
 app.use("/api/v1/leads", leadRouter);
+app.use("/api/v1", leadQualityRouter);
 app.use("/api/v1/dashboard", dashboardRouter);
+
 
 app.use((_request, response) => {
   response.status(404).json({

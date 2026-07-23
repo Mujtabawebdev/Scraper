@@ -17,7 +17,7 @@ describe("normalizeBusiness", () => {
   });
 
   it("normalizes valid US phones and keeps invalid phones unnormalized", () => {
-    expect(normalizeBusiness({ ...base, phoneRaw: "(202) 555-0101" })?.phoneNormalized).toBe("+12025550101");
+    expect(normalizeBusiness({ ...base, phoneRaw: "(202) 555-4321" })?.phoneNormalized).toBe("+12025554321");
     expect(normalizeBusiness({ ...base, phoneRaw: "invalid" })?.phoneNormalized).toBeNull();
   });
 

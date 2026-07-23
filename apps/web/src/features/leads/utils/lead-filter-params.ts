@@ -66,7 +66,9 @@ export const parseLeadFilters = (
     rawSource === "government-dataset" ||
     rawSource === "licensed-csv-import" ||
     rawSource === "meta-approved-api" ||
-    rawSource === "yelp-approved-api"
+    rawSource === "yelp-approved-api" ||
+    rawSource === "permitted-http-directory" ||
+    rawSource === "fixture-business-directory"
       ? rawSource
       : undefined;
   const sourceType = readOptionalText(searchParams.get("sourceType"), 50);

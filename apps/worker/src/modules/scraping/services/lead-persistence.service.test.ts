@@ -4,16 +4,21 @@ const databaseMocks = vi.hoisted(() => {
   const findFirst = vi.fn();
   const create = vi.fn();
   const executeRaw = vi.fn();
+  const findUniqueSource = vi.fn();
+  const findFirstProvenance = vi.fn();
+  const createProvenance = vi.fn();
   const transactionClient = {
     $executeRaw: executeRaw,
     lead: { findFirst, create },
+    approvedSource: { findUnique: findUniqueSource },
+    leadProvenance: { findFirst: findFirstProvenance, create: createProvenance },
   };
   const transaction = vi.fn(
     async (
       operation: (client: typeof transactionClient) => Promise<unknown>,
     ): Promise<unknown> => operation(transactionClient),
   );
-  return { findFirst, create, executeRaw, transaction, transactionClient };
+  return { findFirst, create, executeRaw, findUniqueSource, findFirstProvenance, createProvenance, transaction, transactionClient };
 });
 
 vi.mock("../../../infrastructure/database/prisma.js", () => ({
@@ -58,6 +63,9 @@ describe("persistLeads", () => {
     databaseMocks.findFirst.mockResolvedValue(null);
     databaseMocks.create.mockResolvedValue({ id: "lead-id" });
     databaseMocks.executeRaw.mockResolvedValue(1);
+    databaseMocks.findUniqueSource.mockResolvedValue({ id: "source-id" });
+    databaseMocks.findFirstProvenance.mockResolvedValue(null);
+    databaseMocks.createProvenance.mockResolvedValue({ id: "provenance-id" });
   });
 
   it("scopes deduplication and new leads to the owning user", async () => {
@@ -128,6 +136,8 @@ describe("persistLeads", () => {
           findFirst: databaseMocks.findFirst,
           create: databaseMocks.create,
         },
+        approvedSource: { findUnique: databaseMocks.findUniqueSource },
+        leadProvenance: { findFirst: databaseMocks.findFirstProvenance, create: databaseMocks.createProvenance },
       };
 
       try {

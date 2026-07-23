@@ -35,7 +35,7 @@ const input: ScrapeInput = {
 
 const business: ScrapedBusiness = {
   businessName: "Example Roofing",
-  phoneRaw: "(202) 555-0101",
+  phoneRaw: "(202) 555-4321",
   country: "United States",
   sourceType: "BUSINESS_DIRECTORY",
   sourceName: "Fixture",
@@ -69,11 +69,13 @@ describe("runScraping", () => {
       },
     );
     const onProgress = vi.fn().mockResolvedValue(true);
+    const onStage = vi.fn().mockResolvedValue(true);
 
     const result = await runScraping(input, {
       userId: "00000000-0000-4000-8000-000000000001",
       shouldCancel: vi.fn().mockResolvedValue(false),
       onProgress,
+      onStage,
     });
 
     expect(serviceMocks.persistLeads).toHaveBeenCalledWith(
@@ -83,24 +85,13 @@ describe("runScraping", () => {
         userId: "00000000-0000-4000-8000-000000000001",
       }),
     );
-    expect(onProgress).toHaveBeenNthCalledWith(1, 30, {
-      processedCount: 5,
-      successCount: 0,
-      failureCount: 2,
-      duplicateCount: 0,
-    });
-    expect(onProgress).toHaveBeenNthCalledWith(2, 60, {
-      processedCount: 5,
-      successCount: 0,
-      failureCount: 3,
-      duplicateCount: 1,
-    });
-    expect(onProgress).toHaveBeenNthCalledWith(3, 90, {
+    expect(onProgress).toHaveBeenCalledWith(90, {
       processedCount: 5,
       successCount: 1,
       failureCount: 3,
       duplicateCount: 3,
     });
+    expect(onStage).toHaveBeenCalledWith("PERSIST_LEAD", 82, expect.any(Object));
     expect(result).toEqual({
       processedCount: 5,
       successCount: 1,

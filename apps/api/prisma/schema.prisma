@@ -140,24 +140,81 @@ enum CsvImportStatus {
   FAILED
 }
 
+enum LeadVerificationStatus {
+  UNVERIFIED
+  PARTIALLY_VERIFIED
+  VERIFIED
+  VERIFICATION_FAILED
+  CONFLICTING
+  STALE
+  NO_CONTACT_DATA
+}
+
+enum LeadReviewStatus {
+  NOT_REQUIRED
+  REVIEW_REQUIRED
+  IN_REVIEW
+  APPROVED
+  REJECTED
+}
+
+enum LeadFreshnessStatus {
+  FRESH
+  AGING
+  STALE
+  UNKNOWN
+}
+
+enum DuplicateMatchLevel {
+  EXACT
+  HIGH
+  MEDIUM
+  LOW
+}
+
+enum DuplicateCandidateStatus {
+  PENDING
+  CONFIRMED_DUPLICATE
+  NOT_DUPLICATE
+  IGNORED
+}
+
+enum QualityIssueSeverity {
+  INFO
+  WARNING
+  HIGH
+  CRITICAL
+}
+
+enum QualityIssueStatus {
+  UNRESOLVED
+  RESOLVED
+  IGNORED
+}
+
 model User {
-  id                     String           @id @default(uuid()) @db.Uuid
-  email                  String           @unique @db.VarChar(320)
-  passwordHash           String           @map("password_hash") @db.VarChar(255)
-  fullName               String           @map("full_name") @db.VarChar(150)
-  role                   UserRole         @default(USER)
-  status                 UserStatus       @default(ACTIVE)
-  createdAt              DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt              DateTime         @updatedAt @map("updated_at") @db.Timestamptz(3)
-  lastLoginAt            DateTime?        @map("last_login_at") @db.Timestamptz(3)
+  id                     String                   @id @default(uuid()) @db.Uuid
+  email                  String                   @unique @db.VarChar(320)
+  passwordHash           String                   @map("password_hash") @db.VarChar(255)
+  fullName               String                   @map("full_name") @db.VarChar(150)
+  role                   UserRole                 @default(USER)
+  status                 UserStatus               @default(ACTIVE)
+  createdAt              DateTime                 @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt              DateTime                 @updatedAt @map("updated_at") @db.Timestamptz(3)
+  lastLoginAt            DateTime?                @map("last_login_at") @db.Timestamptz(3)
   scrapingJobs           ScrapingJob[]
   leads                  Lead[]
-  auditLogs              AuditLog[]       @relation("AuditActor")
-  targetedAuditLogs      AuditLog[]       @relation("AuditTarget")
-  approvedSourcesCreated ApprovedSource[] @relation("ApprovedSourceCreator")
-  approvedSourcesUpdated ApprovedSource[] @relation("ApprovedSourceUpdater")
+  auditLogs              AuditLog[]               @relation("AuditActor")
+  targetedAuditLogs      AuditLog[]               @relation("AuditTarget")
+  approvedSourcesCreated ApprovedSource[]         @relation("ApprovedSourceCreator")
+  approvedSourcesUpdated ApprovedSource[]         @relation("ApprovedSourceUpdater")
   csvImports             CsvImport[]
   sessions               UserSession[]
+  verifications          LeadVerification[]
+  reviewedDuplicates     LeadDuplicateCandidate[]
+  mergeHistories         LeadMergeHistory[]
+  resolvedQualityIssues  LeadQualityIssue[]
+  mergedLeads            Lead[]                   @relation("UserMergedLeads")
 
   @@map("users")
 }
@@ -227,45 +284,68 @@ model ScrapingJob {
 }
 
 model Lead {
-  id                      String                @id @default(uuid()) @db.Uuid
-  businessName            String                @map("business_name") @db.VarChar(255)
-  phoneRaw                String?               @map("phone_raw") @db.VarChar(50)
-  phoneNormalized         String?               @map("phone_normalized") @db.VarChar(20)
-  phoneExtension          String?               @map("phone_extension") @db.VarChar(20)
-  phoneCountryCode        String?               @map("phone_country_code") @db.VarChar(8)
-  phoneNationalFormat     String?               @map("phone_national_format") @db.VarChar(50)
-  phoneType               PhoneType             @default(UNKNOWN) @map("phone_type")
-  phoneValidationStatus   PhoneValidationStatus @default(UNVERIFIED) @map("phone_validation_status")
-  email                   String?               @db.VarChar(320)
-  website                 String?               @db.VarChar(2048)
-  domain                  String?               @db.VarChar(253)
-  addressLine1            String?               @map("address_line_1") @db.VarChar(255)
-  addressLine2            String?               @map("address_line_2") @db.VarChar(255)
-  city                    String?               @db.VarChar(120)
-  state                   String?               @db.VarChar(100)
-  postalCode              String?               @map("postal_code") @db.VarChar(20)
-  country                 String                @default("United States") @db.VarChar(100)
-  category                String?               @db.VarChar(150)
-  sourceType              SourceType            @map("source_type")
-  sourceName              String                @map("source_name") @db.VarChar(150)
-  sourceUrl               String                @map("source_url") @db.VarChar(2048)
-  sourceExternalId        String?               @map("source_external_id") @db.VarChar(255)
-  googlePlaceId           String?               @map("google_place_id") @db.VarChar(255)
-  officialWebsiteDomain   String?               @map("official_website_domain") @db.VarChar(253)
-  confidenceScore         Int                   @default(0) @map("confidence_score")
-  confidenceLevel         ConfidenceLevel       @default(VERY_LOW) @map("confidence_level")
-  duplicateReason         String?               @map("duplicate_reason") @db.VarChar(255)
-  status                  LeadStatus            @default(NEW)
-  isPublicBusinessContact Boolean               @default(true) @map("is_public_business_contact")
-  collectedAt             DateTime              @default(now()) @map("collected_at") @db.Timestamptz(3)
-  lastVerifiedAt          DateTime?             @map("last_verified_at") @db.Timestamptz(3)
-  createdAt               DateTime              @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt               DateTime              @updatedAt @map("updated_at") @db.Timestamptz(3)
-  userId                  String                @map("user_id") @db.Uuid
-  scrapingJobId           String                @map("scraping_job_id") @db.Uuid
-  user                    User                  @relation(fields: [userId], references: [id], onDelete: Restrict)
-  scrapingJob             ScrapingJob           @relation(fields: [scrapingJobId, userId], references: [id, userId], onDelete: Restrict)
-  provenance              LeadProvenance[]
+  id                           String                   @id @default(uuid()) @db.Uuid
+  businessName                 String                   @map("business_name") @db.VarChar(255)
+  phoneRaw                     String?                  @map("phone_raw") @db.VarChar(50)
+  phoneNormalized              String?                  @map("phone_normalized") @db.VarChar(20)
+  phoneExtension               String?                  @map("phone_extension") @db.VarChar(20)
+  phoneCountryCode             String?                  @map("phone_country_code") @db.VarChar(8)
+  phoneNationalFormat          String?                  @map("phone_national_format") @db.VarChar(50)
+  phoneType                    PhoneType                @default(UNKNOWN) @map("phone_type")
+  phoneValidationStatus        PhoneValidationStatus    @default(UNVERIFIED) @map("phone_validation_status")
+  email                        String?                  @db.VarChar(320)
+  website                      String?                  @db.VarChar(2048)
+  domain                       String?                  @db.VarChar(253)
+  addressLine1                 String?                  @map("address_line_1") @db.VarChar(255)
+  addressLine2                 String?                  @map("address_line_2") @db.VarChar(255)
+  city                         String?                  @db.VarChar(120)
+  state                        String?                  @db.VarChar(100)
+  postalCode                   String?                  @map("postal_code") @db.VarChar(20)
+  country                      String                   @default("United States") @db.VarChar(100)
+  category                     String?                  @db.VarChar(150)
+  sourceType                   SourceType               @map("source_type")
+  sourceName                   String                   @map("source_name") @db.VarChar(150)
+  sourceUrl                    String                   @map("source_url") @db.VarChar(2048)
+  sourceExternalId             String?                  @map("source_external_id") @db.VarChar(255)
+  googlePlaceId                String?                  @map("google_place_id") @db.VarChar(255)
+  officialWebsiteDomain        String?                  @map("official_website_domain") @db.VarChar(253)
+  confidenceScore              Int                      @default(0) @map("confidence_score")
+  confidenceLevel              ConfidenceLevel          @default(VERY_LOW) @map("confidence_level")
+  qualityScore                 Int                      @default(0) @map("quality_score")
+  completenessScore            Int                      @default(0) @map("completeness_score")
+  verificationStatus           LeadVerificationStatus   @default(UNVERIFIED) @map("verification_status")
+  reviewStatus                 LeadReviewStatus         @default(NOT_REQUIRED) @map("review_status")
+  freshnessStatus              LeadFreshnessStatus      @default(UNKNOWN) @map("freshness_status")
+  nextVerificationAt           DateTime?                @map("next_verification_at") @db.Timestamptz(3)
+  staleAt                      DateTime?                @map("stale_at") @db.Timestamptz(3)
+  primaryPhoneProvenanceId     String?                  @map("primary_phone_provenance_id") @db.Uuid
+  primaryEmailProvenanceId     String?                  @map("primary_email_provenance_id") @db.Uuid
+  primaryWebsiteProvenanceId   String?                  @map("primary_website_provenance_id") @db.Uuid
+  canonicalLeadId              String?                  @map("canonical_lead_id") @db.Uuid
+  mergedAt                     DateTime?                @map("merged_at") @db.Timestamptz(3)
+  mergedByUserId               String?                  @map("merged_by_user_id") @db.Uuid
+  mergeReason                  String?                  @map("merge_reason") @db.Text
+  duplicateReason              String?                  @map("duplicate_reason") @db.VarChar(255)
+  status                       LeadStatus               @default(NEW)
+  isPublicBusinessContact      Boolean                  @default(true) @map("is_public_business_contact")
+  collectedAt                  DateTime                 @default(now()) @map("collected_at") @db.Timestamptz(3)
+  lastVerifiedAt               DateTime?                @map("last_verified_at") @db.Timestamptz(3)
+  createdAt                    DateTime                 @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt                    DateTime                 @updatedAt @map("updated_at") @db.Timestamptz(3)
+  userId                       String                   @map("user_id") @db.Uuid
+  scrapingJobId                String                   @map("scraping_job_id") @db.Uuid
+  user                         User                     @relation(fields: [userId], references: [id], onDelete: Restrict)
+  scrapingJob                  ScrapingJob              @relation(fields: [scrapingJobId, userId], references: [id, userId], onDelete: Restrict)
+  canonicalLead                Lead?                    @relation("LeadMerge", fields: [canonicalLeadId], references: [id], onDelete: SetNull)
+  mergedLeads                  Lead[]                   @relation("LeadMerge")
+  mergedByUser                 User?                    @relation("UserMergedLeads", fields: [mergedByUserId], references: [id], onDelete: SetNull)
+  provenance                   LeadProvenance[]
+  verifications                LeadVerification[]
+  primaryDuplicateCandidates   LeadDuplicateCandidate[] @relation("PrimaryLead")
+  candidateDuplicateCandidates LeadDuplicateCandidate[] @relation("CandidateLead")
+  canonicalMergeHistories      LeadMergeHistory[]       @relation("CanonicalLead")
+  mergedMergeHistories         LeadMergeHistory[]       @relation("MergedLead")
+  qualityIssues                LeadQualityIssue[]
 
   @@index([phoneNormalized])
   @@index([phoneValidationStatus])
@@ -274,6 +354,13 @@ model Lead {
   @@index([googlePlaceId])
   @@index([userId, googlePlaceId])
   @@index([confidenceLevel, confidenceScore])
+  @@index([qualityScore])
+  @@index([completenessScore])
+  @@index([verificationStatus])
+  @@index([reviewStatus])
+  @@index([freshnessStatus])
+  @@index([nextVerificationAt])
+  @@index([canonicalLeadId])
   @@index([email])
   @@index([city, state])
   @@index([category])
@@ -414,4 +501,92 @@ model CsvImport {
   @@index([scrapingJobId])
   @@index([fileSha256])
   @@map("csv_imports")
+}
+
+model LeadVerification {
+  id               String                 @id @default(uuid()) @db.Uuid
+  leadId           String                 @map("lead_id") @db.Uuid
+  verificationType String                 @map("verification_type") @db.VarChar(50)
+  status           LeadVerificationStatus @map("status")
+  provider         String                 @db.VarChar(100)
+  checkedValueHash String?                @map("checked_value_hash") @db.VarChar(128)
+  resultSummary    Json?                  @map("result_summary") @db.JsonB
+  failureReason    String?                @map("failure_reason") @db.Text
+  checkedAt        DateTime               @default(now()) @map("checked_at") @db.Timestamptz(3)
+  expiresAt        DateTime?              @map("expires_at") @db.Timestamptz(3)
+  createdByUserId  String?                @map("created_by_user_id") @db.Uuid
+  createdAt        DateTime               @default(now()) @map("created_at") @db.Timestamptz(3)
+  lead             Lead                   @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  createdByUser    User?                  @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)
+
+  @@index([leadId, checkedAt])
+  @@index([verificationType, status])
+  @@index([createdByUserId])
+  @@map("lead_verifications")
+}
+
+model LeadDuplicateCandidate {
+  id               String                   @id @default(uuid()) @db.Uuid
+  primaryLeadId    String                   @map("primary_lead_id") @db.Uuid
+  candidateLeadId  String                   @map("candidate_lead_id") @db.Uuid
+  matchScore       Int                      @map("match_score")
+  matchLevel       DuplicateMatchLevel      @map("match_level")
+  matchReasons     Json                     @map("match_reasons") @db.JsonB
+  status           DuplicateCandidateStatus @default(PENDING)
+  reviewedByUserId String?                  @map("reviewed_by_user_id") @db.Uuid
+  reviewedAt       DateTime?                @map("reviewed_at") @db.Timestamptz(3)
+  reviewNotes      String?                  @map("review_notes") @db.Text
+  createdAt        DateTime                 @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt        DateTime                 @updatedAt @map("updated_at") @db.Timestamptz(3)
+  primaryLead      Lead                     @relation("PrimaryLead", fields: [primaryLeadId], references: [id], onDelete: Cascade)
+  candidateLead    Lead                     @relation("CandidateLead", fields: [candidateLeadId], references: [id], onDelete: Cascade)
+  reviewedByUser   User?                    @relation(fields: [reviewedByUserId], references: [id], onDelete: SetNull)
+
+  @@unique([primaryLeadId, candidateLeadId])
+  @@index([primaryLeadId, status])
+  @@index([candidateLeadId, status])
+  @@index([status])
+  @@index([reviewedByUserId])
+  @@map("lead_duplicate_candidates")
+}
+
+model LeadMergeHistory {
+  id                String   @id @default(uuid()) @db.Uuid
+  canonicalLeadId   String   @map("canonical_lead_id") @db.Uuid
+  mergedLeadId      String   @map("merged_lead_id") @db.Uuid
+  actorUserId       String?  @map("actor_user_id") @db.Uuid
+  reason            String?  @db.Text
+  preservedSnapshot Json     @map("preserved_snapshot") @db.JsonB
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  canonicalLead     Lead     @relation("CanonicalLead", fields: [canonicalLeadId], references: [id], onDelete: Cascade)
+  mergedLead        Lead     @relation("MergedLead", fields: [mergedLeadId], references: [id], onDelete: Cascade)
+  actorUser         User?    @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([canonicalLeadId])
+  @@index([mergedLeadId])
+  @@index([actorUserId])
+  @@index([createdAt])
+  @@map("lead_merge_histories")
+}
+
+model LeadQualityIssue {
+  id               String               @id @default(uuid()) @db.Uuid
+  leadId           String               @map("lead_id") @db.Uuid
+  issueType        String               @map("issue_type") @db.VarChar(100)
+  severity         QualityIssueSeverity
+  fieldName        String?              @map("field_name") @db.VarChar(100)
+  summary          String               @db.VarChar(500)
+  status           QualityIssueStatus   @default(UNRESOLVED)
+  resolvedAt       DateTime?            @map("resolved_at") @db.Timestamptz(3)
+  resolvedByUserId String?              @map("resolved_by_user_id") @db.Uuid
+  createdAt        DateTime             @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt        DateTime             @updatedAt @map("updated_at") @db.Timestamptz(3)
+  lead             Lead                 @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  resolvedByUser   User?                @relation(fields: [resolvedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([leadId, status])
+  @@index([issueType, status])
+  @@index([severity, status])
+  @@index([resolvedByUserId])
+  @@map("lead_quality_issues")
 }

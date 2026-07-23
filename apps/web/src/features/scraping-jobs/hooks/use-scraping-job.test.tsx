@@ -32,6 +32,7 @@ const createJob = (status: ScrapingJobStatus): ScrapingJobDetail => ({
   failureCount: 0,
   duplicateCount: status === "COMPLETED" ? 2 : 0,
   progressPercentage: status === "COMPLETED" ? 100 : 20,
+  pipelineStage: "PERSIST_LEAD",
   createdAt: "2026-07-23T12:00:00.000Z",
   startedAt: "2026-07-23T12:00:01.000Z",
   completedAt:

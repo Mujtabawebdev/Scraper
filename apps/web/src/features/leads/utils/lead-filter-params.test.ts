@@ -62,7 +62,7 @@ describe("lead filter URL parameters", () => {
     const filters = parseLeadFilters(
       new URLSearchParams({
         jobId: "4b18c844-ef7c-4c99-960d-4dc47dd0dc9a",
-        source: "fixture-business-directory",
+        source: "google-places-api",
         createdFrom: "2026-07-01",
         createdTo: "2026-07-23",
       }),
@@ -70,7 +70,7 @@ describe("lead filter URL parameters", () => {
 
     expect(filters).toMatchObject({
       jobId: "4b18c844-ef7c-4c99-960d-4dc47dd0dc9a",
-      source: "fixture-business-directory",
+      source: "google-places-api",
       createdFrom: "2026-07-01",
       createdTo: "2026-07-23",
     });

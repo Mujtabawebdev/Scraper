@@ -84,7 +84,7 @@ export function CreateJobPage() {
     ) {
       setValue(
         "source",
-        availableSources[0]!.key as ApprovedScrapingSource,
+        availableSources[0]!.key as CreateScrapingJobFormValues["source"],
         { shouldValidate: true },
       );
     }

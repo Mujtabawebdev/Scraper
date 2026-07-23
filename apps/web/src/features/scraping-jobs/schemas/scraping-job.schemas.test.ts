@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { createScrapingJobSchema } from "./scraping-job.schemas";
 
 const validJob = {
-  source: "fixture-business-directory",
+  source: "google-places-api",
   searchQuery: "plumbers",
   location: "Austin, TX",
   requestedLimit: 25,

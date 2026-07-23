@@ -32,6 +32,15 @@ export const REAL_JOB_SOURCE_VALUES = [
   "yelp-approved-api",
 ] as const satisfies readonly ApprovedScrapingSource[];
 
+export const APPROVED_SOURCE_OPTIONS: { value: ApprovedScrapingSource; label: string }[] = [
+  { value: "google-places-api", label: "Google Places API" },
+  { value: "government-dataset", label: "Government Dataset" },
+  { value: "meta-approved-api", label: "Meta Approved API" },
+  { value: "yelp-approved-api", label: "Yelp Approved API" },
+  { value: "permitted-http-directory", label: "Permitted HTTP Directory" },
+  { value: "fixture-business-directory", label: "Fixture Business Directory" },
+];
+
 export const JOB_SORT_FIELDS = [
   "createdAt",
   "updatedAt",

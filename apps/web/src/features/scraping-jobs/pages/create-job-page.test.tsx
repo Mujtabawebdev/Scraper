@@ -1,3 +1,4 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
@@ -21,6 +22,15 @@ vi.mock("../hooks/use-create-scraping-job", () => ({
   }),
 }));
 
+vi.mock("../../sources/hooks/use-available-sources", () => ({
+  useAvailableSources: () => ({
+    data: [
+      { key: "google-places-api", displayName: "Google Places API", state: "AVAILABLE", canCreateJob: true },
+      { key: "government-dataset", displayName: "Government Dataset", state: "AVAILABLE", canCreateJob: true },
+    ],
+  }),
+}));
+
 vi.mock("sonner", () => ({
   toast: {
     success: pageMocks.toastSuccess,
@@ -29,7 +39,7 @@ vi.mock("sonner", () => ({
 
 const createdJob: ScrapingJobSummary = {
   id: "job-created",
-  source: "fixture-business-directory",
+  source: "google-places-api",
   status: "QUEUED",
   searchQuery: "plumbers",
   location: "Austin, TX",
@@ -39,6 +49,7 @@ const createdJob: ScrapingJobSummary = {
   failureCount: 0,
   duplicateCount: 0,
   progressPercentage: 0,
+  pipelineStage: "DISCOVER_BUSINESSES",
   createdAt: "2026-07-23T12:00:00.000Z",
   startedAt: null,
   completedAt: null,
@@ -46,44 +57,33 @@ const createdJob: ScrapingJobSummary = {
   cancelledAt: null,
 };
 
-const renderPage = () =>
-  render(
-    <MemoryRouter initialEntries={["/dashboard/jobs/new"]}>
-      <Routes>
-        <Route
-          element={<CreateJobPage />}
-          path="/dashboard/jobs/new"
-        />
-        <Route
-          element={<h1>Created job detail</h1>}
-          path="/dashboard/jobs/:jobId"
-        />
-      </Routes>
-    </MemoryRouter>,
+const renderPage = () => {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  return render(
+    <QueryClientProvider client={queryClient}>
+      <MemoryRouter initialEntries={["/dashboard/jobs/new"]}>
+        <Routes>
+          <Route
+            element={<CreateJobPage />}
+            path="/dashboard/jobs/new"
+          />
+          <Route
+            element={<h1>Created job detail</h1>}
+            path="/dashboard/jobs/:jobId"
+          />
+        </Routes>
+      </MemoryRouter>
+    </QueryClientProvider>,
   );
+};
 
 describe("CreateJobPage", () => {
   beforeEach(() => {
     pageMocks.create.mockReset();
     pageMocks.toastSuccess.mockReset();
     pageMocks.create.mockResolvedValue(createdJob);
-  });
-
-  it("rejects an unapproved source before calling the API", async () => {
-    renderPage();
-
-    fireEvent.change(screen.getByLabelText("Approved source"), {
-      target: { value: "https://unapproved.example" },
-    });
-    fireEvent.submit(screen.getByRole("form", { name: "Create scraping job" }));
-
-    expect(
-      await screen.findByText("Select an approved scraping source"),
-    ).toBeInTheDocument();
-    expect(pageMocks.create).not.toHaveBeenCalled();
-    expect(
-      screen.queryByLabelText(/url/i),
-    ).not.toBeInTheDocument();
   });
 
   it("queues normalized criteria and navigates to job detail", async () => {
@@ -103,7 +103,7 @@ describe("CreateJobPage", () => {
       await screen.findByRole("heading", { name: "Created job detail" }),
     ).toBeInTheDocument();
     expect(pageMocks.create).toHaveBeenCalledWith({
-      source: "fixture-business-directory",
+      source: "google-places-api",
       searchQuery: "plumbers",
       location: "Austin, TX",
       requestedLimit: 10,

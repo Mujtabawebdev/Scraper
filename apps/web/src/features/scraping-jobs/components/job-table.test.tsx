@@ -18,6 +18,7 @@ const runningJob: ScrapingJobSummary = {
   failureCount: 1,
   duplicateCount: 1,
   progressPercentage: 40,
+  pipelineStage: "PERSIST_LEAD",
   createdAt: "2026-07-23T12:00:00.000Z",
   startedAt: "2026-07-23T12:00:01.000Z",
   completedAt: null,

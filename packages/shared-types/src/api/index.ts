@@ -45,3 +45,24 @@ export type {
   PaginatedApprovedSources,
   SafeAuditEvent,
 } from "./admin.types.js";
+export type {
+  AdminQualityDashboardSummary,
+  DuplicateCandidateStatus,
+  DuplicateMatchLevel,
+  LeadCompletenessScore,
+  LeadConfidenceLevel,
+  LeadDuplicateCandidateSummary,
+  LeadFreshnessStatus,
+  LeadMergePreview,
+  LeadMergeResult,
+  LeadQualityScore,
+  LeadQualitySummary,
+  LeadReviewStatus,
+  LeadVerificationHistoryItem,
+  LeadVerificationStatus,
+  QualityIssueItem,
+  QualityIssueSeverity,
+  QualityIssueType,
+  UserQualityDashboardSummary,
+} from "./quality.types.js";
+

@@ -27,6 +27,7 @@ vi.mock("../admin/source-policy.service.js", () => ({
 
 vi.mock("./scraping-job.repository.js", () => ({
   cancelOwnedScrapingJob: vi.fn(),
+  countRecentOwnedJobsBySource: vi.fn(),
   createScrapingJobRecord: vi.fn(),
   findOwnedScrapingJobDetail: vi.fn(),
   findOwnedScrapingJobForRetry: vi.fn(),
@@ -42,6 +43,7 @@ import {
 } from "../../infrastructure/queue/scraping.queue.js";
 import {
   cancelOwnedScrapingJob,
+  countRecentOwnedJobsBySource,
   createScrapingJobRecord,
   findOwnedScrapingJobDetail,
   findOwnedScrapingJobForRetry,
@@ -115,6 +117,7 @@ const input = {
 describe("scraping job service", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(countRecentOwnedJobsBySource).mockResolvedValue(0);
     vi.mocked(createScrapingJobRecord).mockResolvedValue(pendingRecord);
     vi.mocked(enqueueScrapingJob).mockResolvedValue({
       id: "queue-1",
