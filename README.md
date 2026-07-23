@@ -4,17 +4,17 @@ A production-oriented SaaS for collecting and managing publicly available U.S. b
 
 ## Planned Stack
 
-- **Frontend:** React.js, TypeScript, Vite, Tailwind CSS, Shadcn UI, Redux Toolkit, and TanStack Query.
+- **Frontend:** React, TypeScript, Vite, Tailwind CSS, Redux Toolkit, TanStack Query, and React Router.
 - **Backend:** Node.js, Express.js, TypeScript, PostgreSQL, Prisma ORM, Redis, and BullMQ.
 - **Scraping:** Cheerio and Playwright for permitted collection workflows.
 - **Infrastructure:** Docker, Docker Compose, Nginx, and GitHub Actions.
 
 ## Monorepo Applications
 
-- `apps/api`: Express REST API with configuration, logging, middleware, and health checks.
-- `apps/worker`: Future background job worker.
-- `apps/web`: Future React web application.
-- `packages/shared-types`: Future shared TypeScript contracts.
+- `apps/api`: Express REST API with authentication, leads, scraping jobs, health checks, and production middleware.
+- `apps/worker`: BullMQ worker for the permitted scraping proof of concept.
+- `apps/web`: React web application with authentication, protected routing, and the dashboard shell.
+- `packages/shared-types`: Shared queue and scraping-job TypeScript contracts.
 - `packages/validation`: Future shared validation schemas.
 - `packages/config`: Future shared configuration.
 
@@ -44,9 +44,117 @@ npm run db:seed --workspace=@lead-saas/api
 npm run dev:worker
 ```
 
+In another terminal, start the frontend:
+
+```powershell
+npm run dev:web
+```
+
 The local worker concurrency is controlled by `WORKER_CONCURRENCY` and defaults to `2`.
 
-The API runs at `http://localhost:5000`; health is at `http://localhost:5000/api/v1/health`. Copy `.env.example` to `.env` only when local overrides are needed. Never commit real secrets.
+The API runs at `http://localhost:5000`; health is at
+`http://localhost:5000/api/v1/health`. The frontend runs at
+`http://localhost:5173`. Copy `.env.example` to `.env` only when local
+overrides are needed. Never commit real secrets.
+
+## Frontend Application
+
+Phase 6 provides the React frontend foundation, registration and login pages,
+authentication bootstrap, protected and role-aware routes, logout controls, and
+a responsive dashboard shell. Scraping jobs, leads, and account settings remain
+clearly labelled placeholders for later phases.
+
+The frontend workspace uses:
+
+- Vite, React, and strict TypeScript;
+- Tailwind CSS for the responsive UI foundation;
+- React Router for public, protected, and role-aware navigation;
+- Redux Toolkit only for global authentication state;
+- TanStack Query for server state and authentication mutations;
+- React Hook Form and Zod for accessible form validation; and
+- Axios with a credentialed, typed API client.
+
+### Frontend Environment
+
+The browser receives only public `VITE_` configuration:
+
+| Variable | Local value | Purpose |
+| --- | --- | --- |
+| `VITE_API_BASE_URL` | `http://localhost:5000/api/v1` | Versioned API base URL |
+| `VITE_APP_NAME` | `US Business Lead SaaS` | User-facing application name |
+
+Backend JWT secrets, database credentials, Redis credentials, and refresh
+tokens must never be exposed through `VITE_` variables. Frontend environment
+validation fails clearly when the API URL is missing or invalid.
+
+### Frontend Commands
+
+```powershell
+npm run dev:web
+npm run typecheck --workspace=@lead-saas/web
+npm run build --workspace=@lead-saas/web
+npm run test --workspace=@lead-saas/web
+```
+
+The root `npm run typecheck`, `npm run build`, and `npm run test` commands
+validate all participating workspaces, including the web application.
+
+### Browser Authentication Flow
+
+Registration and login place the short-lived access token in Redux memory and
+never in `localStorage` or `sessionStorage`. The API sends the rotating refresh
+token only as an `HttpOnly` cookie, so frontend JavaScript cannot read or
+persist it.
+
+On a new page load, browser memory is empty. The app makes one credentialed
+`POST /auth/refresh` request, stores the returned access token in memory, then
+loads `GET /auth/me`. A full-page loader prevents routing decisions until this
+bootstrap finishes. If refresh fails, the user remains logged out.
+
+The API client sends bearer access tokens and includes browser credentials. A
+`401` triggers one coordinated refresh attempt and retries the original request
+once. Concurrent failures share that refresh operation; refresh failure clears
+authentication state and does not enter an infinite retry loop.
+
+Logout calls `POST /auth/logout`, clears local authentication and query state
+even if the network request fails, and returns the user to `/login`.
+Logout-all calls the protected `POST /auth/logout-all` endpoint and applies the
+same local cleanup. See `docs/frontend-auth.md` for the complete frontend
+architecture and security decisions.
+
+### Frontend Routes
+
+| Route | Access | Purpose |
+| --- | --- | --- |
+| `/` | Public | Redirect according to authentication state |
+| `/login` | Signed-out users | Password login |
+| `/register` | Signed-out users | Account registration |
+| `/dashboard` | Authenticated users | Welcome page and labelled analytics placeholders |
+| `/dashboard/jobs` | Authenticated users | Later-phase placeholder |
+| `/dashboard/leads` | Authenticated users | Later-phase placeholder |
+| `/dashboard/settings` | Authenticated users | Account/session actions and later-phase placeholder |
+| `/unauthorized` | Public | Insufficient-role explanation |
+| `*` | Public | Not-found page |
+
+### Integrated Local Authentication Check
+
+Start PostgreSQL and Redis, then run the API and frontend in separate terminals:
+
+```powershell
+docker compose up -d postgres redis
+npm run dev:api
+```
+
+```powershell
+npm run dev:web
+```
+
+Open `http://localhost:5173` and verify registration, the dashboard redirect,
+page-reload restoration through the refresh cookie, logout, login, protected
+route redirects, duplicate registration, invalid credentials, and the mobile
+navigation. Local credentialed requests are allowed from
+`http://localhost:5173` to `http://localhost:5000`; production must retain an
+explicit trusted origin and secure cookie settings.
 
 ## Prisma And Migrations
 
