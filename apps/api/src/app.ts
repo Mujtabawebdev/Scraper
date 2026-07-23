@@ -4,8 +4,10 @@ import express from "express";
 import helmet from "helmet";
 import { pinoHttp } from "pino-http";
 
-import { logger } from "./common/logger/logger.js";
+import { errorHandler } from "./common/middleware/error.middleware.js";
+import { logger, serializeHttpResponseForLog } from "./common/logger/logger.js";
 import { env } from "./config/env.js";
+import { authRouter } from "./modules/auth/auth.routes.js";
 import { healthRouter } from "./modules/health/health.routes.js";
 import { scrapingJobRouter } from "./modules/scraping-jobs/scraping-job.routes.js";
 import { leadRouter } from "./modules/leads/lead.routes.js";
@@ -18,7 +20,12 @@ app.use(cors({ origin: env.FRONTEND_URL, credentials: true }));
 app.use(express.json({ limit: "1mb" }));
 app.use(express.urlencoded({ extended: true, limit: "1mb" }));
 app.use(cookieParser());
-app.use(pinoHttp({ logger }));
+app.use(
+  pinoHttp({
+    logger,
+    serializers: { res: serializeHttpResponseForLog },
+  }),
+);
 
 app.get("/", (_request, response) => {
   response.status(200).json({
@@ -28,6 +35,7 @@ app.get("/", (_request, response) => {
 });
 
 app.use("/api/v1/health", healthRouter);
+app.use("/api/v1/auth", authRouter);
 app.use("/api/v1/scraping-jobs", scrapingJobRouter);
 app.use("/api/v1/leads", leadRouter);
 
@@ -38,3 +46,5 @@ app.use((_request, response) => {
     error: { code: "ROUTE_NOT_FOUND" },
   });
 });
+
+app.use(errorHandler);
