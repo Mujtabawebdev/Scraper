@@ -32,6 +32,11 @@ export const exportLeadsCsv = async (
   userId: string,
   query: ExportLeadsQuery,
 ): Promise<string> => {
+  const { assertCanConsume } = await import("../billing/entitlement.service.js");
+  const { incrementUsageDirectly } = await import("../billing/usage.service.js");
+
+  await assertCanConsume(userId, "CSV_EXPORTS", 1);
+
   const leads = await listOwnedLeadsForExport(
     userId,
     query,
@@ -40,6 +45,11 @@ export const exportLeadsCsv = async (
   if (leads.length > LEAD_EXPORT_ROW_LIMIT) {
     throw exportLimitExceededError(LEAD_EXPORT_ROW_LIMIT);
   }
+
+  await assertCanConsume(userId, "EXPORTED_LEADS", leads.length);
+
+  await incrementUsageDirectly(userId, "CSV_EXPORTS", 1);
+  await incrementUsageDirectly(userId, "EXPORTED_LEADS", leads.length);
 
   const rows = leads.map((lead) => {
     const address = [lead.addressLine1, lead.addressLine2]

@@ -151,6 +151,14 @@ export const prepareAuthTestDatabase = async (): Promise<void> => {
 
   await createDatabaseIfMissing(sourceDatabaseUrl, testDatabaseUrl);
   await deployMigrations(testDatabaseUrl);
+
+  process.env.DATABASE_URL = testDatabaseUrl;
+  process.env.DIRECT_DATABASE_URL = testDatabaseUrl;
+  const { seedPlanCatalog } = await import("../src/modules/billing/plans/plan-catalog.js");
+  const { disconnectDatabase } = await import("../src/infrastructure/database/prisma.js");
+  await seedPlanCatalog();
+  await disconnectDatabase();
+
   console.log(`Authentication test database is ready: ${testDatabaseName}`);
 };
 

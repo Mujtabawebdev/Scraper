@@ -16,6 +16,8 @@ import { leadRouter } from "./modules/leads/lead.routes.js";
 import { sourceRouter } from "./modules/sources/source.routes.js";
 import { csvImportRouter } from "./modules/imports/csv-import.routes.js";
 import { adminQualityRouter, leadQualityRouter } from "./modules/lead-quality/lead-quality.routes.js";
+import { billingRouter } from "./modules/billing/billing.routes.js";
+import { adminBillingRouter } from "./modules/billing/admin-billing.routes.js";
 
 export const app = express();
 
@@ -51,6 +53,8 @@ app.use("/api/v1/sources", sourceRouter);
 app.use("/api/v1/imports", csvImportRouter);
 app.use("/api/v1/admin", adminRouter);
 app.use("/api/v1/admin", adminQualityRouter);
+app.use("/api/v1/admin/billing", adminBillingRouter);
+app.use("/api/v1/billing", billingRouter);
 app.use("/api/v1/scraping-jobs", scrapingJobRouter);
 app.use("/api/v1/leads", leadRouter);
 app.use("/api/v1", leadQualityRouter);

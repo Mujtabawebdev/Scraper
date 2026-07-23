@@ -119,6 +119,20 @@ const enqueueNewScrapingJob = async (
   );
   const sourceHourlyLimit = data.source === "google-places-api" ? 5 : 10;
   if (recentCount >= sourceHourlyLimit) throw sourceRateLimitedError();
+
+  // Entitlement Quota Checks
+  const { assertCanConsume } = await import("../billing/entitlement.service.js");
+  const { reserveUsage, consumeReservation, releaseReservation } = await import("../billing/usage.service.js");
+
+  await assertCanConsume(data.userId, "SCRAPING_JOBS", 1);
+  await assertCanConsume(data.userId, "REQUESTED_LEADS", data.requestedLimit);
+
+  const jobResKey = `res_job_${data.userId}_${Date.now()}`;
+  const leadsResKey = `res_leads_${data.userId}_${Date.now()}`;
+
+  await reserveUsage(data.userId, "SCRAPING_JOBS", 1, "scraping_job", undefined, jobResKey);
+  await reserveUsage(data.userId, "REQUESTED_LEADS", data.requestedLimit, "scraping_job", undefined, leadsResKey);
+
   const queueLocation = {
     ...parseQueueLocation(data.location),
     ...(data.city ? { city: data.city } : {}),
@@ -145,7 +159,11 @@ const enqueueNewScrapingJob = async (
   let queueJob: Awaited<ReturnType<typeof enqueueScrapingJob>>;
   try {
     queueJob = await enqueueScrapingJob(queueData);
+    await consumeReservation(jobResKey);
+    await consumeReservation(leadsResKey);
   } catch (error: unknown) {
+    await releaseReservation(jobResKey);
+    await releaseReservation(leadsResKey);
     try {
       await markScrapingJobEnqueueFailed(databaseJob.id, data.userId);
     } catch {

@@ -216,6 +216,15 @@ model User {
   resolvedQualityIssues  LeadQualityIssue[]
   mergedLeads            Lead[]                   @relation("UserMergedLeads")
 
+  // Billing relations
+  billingProfile      CustomerBillingProfile?
+  subscriptions       Subscription[]
+  subscriptionHistory SubscriptionHistory[]
+  usagePeriods        UsagePeriod[]
+  usageReservations   UsageReservation[]
+  invoices            Invoice[]
+  payments            Payment[]
+
   @@map("users")
 }
 
@@ -589,4 +598,396 @@ model LeadQualityIssue {
   @@index([severity, status])
   @@index([resolvedByUserId])
   @@map("lead_quality_issues")
+}
+
+// ─── Billing Enums ────────────────────────────────────────────────────────────
+
+enum BillingProvider {
+  STRIPE
+  MANUAL
+  NONE
+}
+
+enum SubscriptionStatus {
+  INCOMPLETE
+  TRIALING
+  ACTIVE
+  PAST_DUE
+  PAUSED
+  CANCELED
+  UNPAID
+  EXPIRED
+}
+
+enum BillingInterval {
+  MONTHLY
+  YEARLY
+  CUSTOM
+}
+
+enum SubscriptionChangeType {
+  CREATED
+  TRIAL_STARTED
+  ACTIVATED
+  RENEWED
+  UPGRADED
+  DOWNGRADED
+  CANCEL_SCHEDULED
+  CANCELED
+  PAUSED
+  RESUMED
+  PAYMENT_FAILED
+  PAYMENT_SUCCEEDED
+  EXPIRED
+  ADMIN_UPDATED
+}
+
+enum UsageMetric {
+  SCRAPING_JOBS
+  REQUESTED_LEADS
+  STORED_LEADS
+  CSV_EXPORTS
+  EXPORTED_LEADS
+  API_REQUESTS
+  WEBSITE_ENRICHMENTS
+  PHONE_ENRICHMENTS
+  TEAM_MEMBERS
+}
+
+enum UsageReservationStatus {
+  RESERVED
+  CONSUMED
+  RELEASED
+  EXPIRED
+}
+
+enum InvoiceStatus {
+  DRAFT
+  OPEN
+  PAID
+  VOID
+  UNCOLLECTIBLE
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCEEDED
+  FAILED
+  REFUNDED
+  PARTIALLY_REFUNDED
+  CANCELED
+}
+
+enum WebhookProcessingStatus {
+  RECEIVED
+  PROCESSING
+  PROCESSED
+  IGNORED
+  FAILED
+}
+
+// ─── Billing Models ───────────────────────────────────────────────────────────
+
+/// Subscription plan definition. Key is stable and immutable.
+model Plan {
+  id                String          @id @default(uuid()) @db.Uuid
+  key               String          @unique @db.VarChar(50)
+  name              String          @db.VarChar(100)
+  description       String?         @db.Text
+  isActive          Boolean         @default(true) @map("is_active")
+  isPublic          Boolean         @default(true) @map("is_public")
+  billingProvider   BillingProvider @default(NONE) @map("billing_provider")
+  providerProductId String?         @map("provider_product_id") @db.VarChar(255)
+  displayOrder      Int             @default(0) @map("display_order")
+  metadata          Json?           @db.JsonB
+  createdAt         DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt         DateTime        @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  prices        PlanPrice[]
+  limits        PlanLimit[]
+  subscriptions Subscription[]
+
+  @@index([isActive, isPublic])
+  @@index([displayOrder])
+  @@map("plans")
+}
+
+/// Pricing for a plan at a specific billing interval.
+model PlanPrice {
+  id              String          @id @default(uuid()) @db.Uuid
+  planId          String          @map("plan_id") @db.Uuid
+  billingInterval BillingInterval @map("billing_interval")
+  currency        String          @default("usd") @db.VarChar(3)
+  /// Amount in minor currency units (e.g. cents). 0 = free.
+  unitAmount      Int             @map("unit_amount")
+  providerPriceId String?         @map("provider_price_id") @db.VarChar(255)
+  trialDays       Int             @default(0) @map("trial_days")
+  isActive        Boolean         @default(true) @map("is_active")
+  createdAt       DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime        @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  plan          Plan           @relation(fields: [planId], references: [id], onDelete: Cascade)
+  subscriptions Subscription[]
+
+  @@unique([planId, billingInterval, currency])
+  @@index([providerPriceId])
+  @@map("plan_prices")
+}
+
+/// Usage limits per metric for a plan.
+model PlanLimit {
+  id            String      @id @default(uuid()) @db.Uuid
+  planId        String      @map("plan_id") @db.Uuid
+  metric        UsageMetric
+  /// null = no hard limit (use softLimit or unlimited)
+  hardLimit     Int?        @map("hard_limit")
+  /// Soft warning threshold
+  softLimit     Int?        @map("soft_limit")
+  /// When true, this metric is unrestricted
+  unlimited     Boolean     @default(false)
+  /// Interval key for resets: "monthly" | "yearly" | "never"
+  resetInterval String      @default("monthly") @map("reset_interval") @db.VarChar(20)
+  metadata      Json?       @db.JsonB
+  createdAt     DateTime    @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt     DateTime    @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  plan Plan @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  @@unique([planId, metric])
+  @@index([planId])
+  @@map("plan_limits")
+}
+
+/// Per-user billing profile linking to payment provider customer.
+model CustomerBillingProfile {
+  id                            String          @id @default(uuid()) @db.Uuid
+  userId                        String          @unique @map("user_id") @db.Uuid
+  billingProvider               BillingProvider @default(NONE) @map("billing_provider")
+  providerCustomerId            String?         @unique @map("provider_customer_id") @db.VarChar(255)
+  billingEmail                  String          @map("billing_email") @db.VarChar(320)
+  businessName                  String?         @map("business_name") @db.VarChar(255)
+  taxIdReference                String?         @map("tax_id_reference") @db.VarChar(100)
+  billingAddress                Json?           @map("billing_address") @db.JsonB
+  defaultPaymentMethodReference String?         @map("default_payment_method_reference") @db.VarChar(255)
+  createdAt                     DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt                     DateTime        @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([providerCustomerId])
+  @@map("customer_billing_profiles")
+}
+
+/// Active subscription for a user.
+model Subscription {
+  id                     String             @id @default(uuid()) @db.Uuid
+  userId                 String             @map("user_id") @db.Uuid
+  planId                 String             @map("plan_id") @db.Uuid
+  planPriceId            String?            @map("plan_price_id") @db.Uuid
+  billingProfileId       String?            @map("billing_profile_id") @db.Uuid
+  provider               BillingProvider    @default(NONE)
+  providerSubscriptionId String?            @unique @map("provider_subscription_id") @db.VarChar(255)
+  status                 SubscriptionStatus @default(INCOMPLETE)
+  currentPeriodStart     DateTime           @map("current_period_start") @db.Timestamptz(3)
+  currentPeriodEnd       DateTime           @map("current_period_end") @db.Timestamptz(3)
+  trialStart             DateTime?          @map("trial_start") @db.Timestamptz(3)
+  trialEnd               DateTime?          @map("trial_end") @db.Timestamptz(3)
+  cancelAtPeriodEnd      Boolean            @default(false) @map("cancel_at_period_end")
+  canceledAt             DateTime?          @map("canceled_at") @db.Timestamptz(3)
+  endedAt                DateTime?          @map("ended_at") @db.Timestamptz(3)
+  providerMetadata       Json?              @map("provider_metadata") @db.JsonB
+  /// Optimistic concurrency version
+  version                Int                @default(0)
+  createdAt              DateTime           @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt              DateTime           @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  user         User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plan         Plan                  @relation(fields: [planId], references: [id], onDelete: Restrict)
+  planPrice    PlanPrice?            @relation(fields: [planPriceId], references: [id], onDelete: SetNull)
+  history      SubscriptionHistory[]
+  usagePeriods UsagePeriod[]
+  invoices     Invoice[]
+
+  @@index([userId, status])
+  @@index([status])
+  @@index([currentPeriodEnd])
+  @@index([providerSubscriptionId])
+  @@map("subscriptions")
+}
+
+/// Immutable audit trail of subscription state changes.
+model SubscriptionHistory {
+  id              String                 @id @default(uuid()) @db.Uuid
+  subscriptionId  String                 @map("subscription_id") @db.Uuid
+  userId          String                 @map("user_id") @db.Uuid
+  changeType      SubscriptionChangeType @map("change_type")
+  previousPlanId  String?                @map("previous_plan_id") @db.Uuid
+  newPlanId       String?                @map("new_plan_id") @db.Uuid
+  previousStatus  SubscriptionStatus?    @map("previous_status")
+  newStatus       SubscriptionStatus?    @map("new_status")
+  effectiveAt     DateTime               @map("effective_at") @db.Timestamptz(3)
+  actorUserId     String?                @map("actor_user_id") @db.Uuid
+  reason          String?                @db.Text
+  providerEventId String?                @map("provider_event_id") @db.VarChar(255)
+  metadata        Json?                  @db.JsonB
+  createdAt       DateTime               @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  subscription Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([subscriptionId])
+  @@index([userId])
+  @@index([changeType])
+  @@index([effectiveAt])
+  @@map("subscription_history")
+}
+
+/// Tracks a billing period for usage measurement.
+model UsagePeriod {
+  id             String   @id @default(uuid()) @db.Uuid
+  userId         String   @map("user_id") @db.Uuid
+  subscriptionId String?  @map("subscription_id") @db.Uuid
+  periodStart    DateTime @map("period_start") @db.Timestamptz(3)
+  periodEnd      DateTime @map("period_end") @db.Timestamptz(3)
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  user         User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  subscription Subscription?      @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
+  counters     UsageCounter[]
+  reservations UsageReservation[]
+
+  @@unique([userId, periodStart, periodEnd])
+  @@index([userId])
+  @@index([subscriptionId])
+  @@index([periodStart, periodEnd])
+  @@map("usage_periods")
+}
+
+/// Atomic usage counter per metric within a billing period.
+model UsageCounter {
+  id            String      @id @default(uuid()) @db.Uuid
+  usagePeriodId String      @map("usage_period_id") @db.Uuid
+  metric        UsageMetric
+  quantity      Int         @default(0)
+  updatedAt     DateTime    @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  usagePeriod UsagePeriod @relation(fields: [usagePeriodId], references: [id], onDelete: Cascade)
+
+  @@unique([usagePeriodId, metric])
+  @@index([usagePeriodId])
+  @@map("usage_counters")
+}
+
+/// Pessimistic usage reservation for in-flight operations.
+model UsageReservation {
+  id             String                 @id @default(uuid()) @db.Uuid
+  userId         String                 @map("user_id") @db.Uuid
+  usagePeriodId  String                 @map("usage_period_id") @db.Uuid
+  metric         UsageMetric
+  quantity       Int
+  status         UsageReservationStatus @default(RESERVED)
+  /// Client-supplied idempotency key to prevent double-reservation
+  idempotencyKey String                 @unique @map("idempotency_key") @db.VarChar(255)
+  expiresAt      DateTime?              @map("expires_at") @db.Timestamptz(3)
+  /// e.g. "scraping_job", "csv_export"
+  referenceType  String                 @map("reference_type") @db.VarChar(100)
+  referenceId    String?                @map("reference_id") @db.VarChar(255)
+  createdAt      DateTime               @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime               @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  usagePeriod UsagePeriod @relation(fields: [usagePeriodId], references: [id], onDelete: Cascade)
+
+  @@index([userId, metric, status])
+  @@index([usagePeriodId])
+  @@index([expiresAt])
+  @@index([referenceType, referenceId])
+  @@map("usage_reservations")
+}
+
+/// Invoice synced from billing provider.
+model Invoice {
+  id                String          @id @default(uuid()) @db.Uuid
+  userId            String          @map("user_id") @db.Uuid
+  subscriptionId    String?         @map("subscription_id") @db.Uuid
+  provider          BillingProvider
+  providerInvoiceId String?         @unique @map("provider_invoice_id") @db.VarChar(255)
+  number            String?         @db.VarChar(100)
+  currency          String          @default("usd") @db.VarChar(3)
+  subtotalAmount    Int             @map("subtotal_amount")
+  taxAmount         Int             @default(0) @map("tax_amount")
+  totalAmount       Int             @map("total_amount")
+  amountPaid        Int             @default(0) @map("amount_paid")
+  amountDue         Int             @map("amount_due")
+  status            InvoiceStatus   @default(DRAFT)
+  hostedInvoiceUrl  String?         @map("hosted_invoice_url") @db.VarChar(2048)
+  invoicePdfUrl     String?         @map("invoice_pdf_url") @db.VarChar(2048)
+  periodStart       DateTime?       @map("period_start") @db.Timestamptz(3)
+  periodEnd         DateTime?       @map("period_end") @db.Timestamptz(3)
+  dueAt             DateTime?       @map("due_at") @db.Timestamptz(3)
+  paidAt            DateTime?       @map("paid_at") @db.Timestamptz(3)
+  createdAt         DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt         DateTime        @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  subscription Subscription? @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
+  payments     Payment[]
+
+  @@index([userId])
+  @@index([subscriptionId])
+  @@index([status])
+  @@index([paidAt])
+  @@map("invoices")
+}
+
+/// Payment record synced from billing provider.
+model Payment {
+  id                String          @id @default(uuid()) @db.Uuid
+  userId            String          @map("user_id") @db.Uuid
+  invoiceId         String?         @map("invoice_id") @db.Uuid
+  provider          BillingProvider
+  providerPaymentId String?         @unique @map("provider_payment_id") @db.VarChar(255)
+  amount            Int
+  currency          String          @default("usd") @db.VarChar(3)
+  status            PaymentStatus   @default(PENDING)
+  failureCode       String?         @map("failure_code") @db.VarChar(100)
+  failureMessage    String?         @map("failure_message") @db.Text
+  refundedAmount    Int             @default(0) @map("refunded_amount")
+  paidAt            DateTime?       @map("paid_at") @db.Timestamptz(3)
+  metadata          Json?           @db.JsonB
+  createdAt         DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt         DateTime        @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  invoice Invoice? @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([invoiceId])
+  @@index([status])
+  @@index([paidAt])
+  @@map("payments")
+}
+
+/// Deduplication and audit record for billing provider webhook events.
+model BillingWebhookEvent {
+  id              String                  @id @default(uuid()) @db.Uuid
+  provider        BillingProvider
+  /// Provider-assigned event ID for deduplication
+  providerEventId String                  @unique @map("provider_event_id") @db.VarChar(255)
+  eventType       String                  @map("event_type") @db.VarChar(100)
+  /// SHA-256 hash of raw payload for integrity check
+  payloadHash     String                  @map("payload_hash") @db.VarChar(64)
+  status          WebhookProcessingStatus @default(RECEIVED)
+  attempts        Int                     @default(0)
+  lastError       String?                 @map("last_error") @db.Text
+  receivedAt      DateTime                @map("received_at") @db.Timestamptz(3)
+  processedAt     DateTime?               @map("processed_at") @db.Timestamptz(3)
+  createdAt       DateTime                @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime                @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@index([provider, eventType])
+  @@index([status])
+  @@index([receivedAt])
+  @@map("billing_webhook_events")
 }

@@ -65,4 +65,22 @@ export type {
   QualityIssueType,
   UserQualityDashboardSummary,
 } from "./quality.types.js";
+export type {
+  AdminBillingSummary,
+  AdminSubscriptionSummary,
+  BillingPortalResponse,
+  BillingWebhookEventSummary,
+  CancelSubscriptionRequest,
+  CheckoutSessionRequest,
+  CheckoutSessionResponse,
+  CurrentSubscriptionDTO,
+  EntitlementsSummaryDTO,
+  InvoiceDTO,
+  MetricEntitlementDTO,
+  PaymentDTO,
+  PlanChangeRequest,
+  PlanLimitDTO,
+  PlanPriceDTO,
+  PlanSummary,
+} from "./billing.types.js";
 

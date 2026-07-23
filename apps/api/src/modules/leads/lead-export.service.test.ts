@@ -4,6 +4,14 @@ vi.mock("./lead.repository.js", () => ({
   listOwnedLeadsForExport: vi.fn(),
 }));
 
+vi.mock("../billing/entitlement.service.js", () => ({
+  assertCanConsume: vi.fn().mockResolvedValue({}),
+}));
+
+vi.mock("../billing/usage.service.js", () => ({
+  incrementUsageDirectly: vi.fn().mockResolvedValue({}),
+}));
+
 import {
   LEAD_EXPORT_ROW_LIMIT,
   escapeCsvCell,

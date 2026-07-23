@@ -25,6 +25,16 @@ vi.mock("../admin/source-policy.service.js", () => ({
   })),
 }));
 
+vi.mock("../billing/entitlement.service.js", () => ({
+  assertCanConsume: vi.fn().mockResolvedValue({}),
+}));
+
+vi.mock("../billing/usage.service.js", () => ({
+  reserveUsage: vi.fn().mockResolvedValue({}),
+  consumeReservation: vi.fn().mockResolvedValue({}),
+  releaseReservation: vi.fn().mockResolvedValue({}),
+}));
+
 vi.mock("./scraping-job.repository.js", () => ({
   cancelOwnedScrapingJob: vi.fn(),
   countRecentOwnedJobsBySource: vi.fn(),

@@ -173,6 +173,17 @@ const envSchema = z
     AUTH_REGISTER_RATE_LIMIT_MAX: rateLimitMaximumSchema.default(5),
     AUTH_REFRESH_RATE_LIMIT_WINDOW_MS: rateLimitWindowSchema.default(900_000),
     AUTH_REFRESH_RATE_LIMIT_MAX: rateLimitMaximumSchema.default(30),
+    BILLING_PROVIDER: z.enum(["STRIPE", "MANUAL", "NONE"]).default("NONE"),
+    STRIPE_SECRET_KEY: optionalSecretSchema,
+    STRIPE_WEBHOOK_SECRET: optionalSecretSchema,
+    STRIPE_PUBLISHABLE_KEY: optionalSecretSchema,
+    STRIPE_PRICE_STARTER_MONTHLY: optionalSecretSchema,
+    STRIPE_PRICE_PRO_MONTHLY: optionalSecretSchema,
+    STRIPE_PRICE_STARTER_YEARLY: optionalSecretSchema,
+    STRIPE_PRICE_PRO_YEARLY: optionalSecretSchema,
+    BILLING_SUCCESS_URL: z.url().default("http://localhost:5173/billing?checkout=success"),
+    BILLING_CANCEL_URL: z.url().default("http://localhost:5173/billing?checkout=cancelled"),
+    BILLING_PORTAL_RETURN_URL: z.url().default("http://localhost:5173/billing"),
   })
   .superRefine((values, context) => {
     const accessDurationSeconds = durationToSeconds(values.JWT_ACCESS_EXPIRES_IN);

@@ -50,6 +50,7 @@
     "pg": "^8.22.0",
     "pino": "latest",
     "pino-http": "latest",
+    "stripe": "^17.7.0",
     "zod": "latest"
   },
   "devDependencies": {
