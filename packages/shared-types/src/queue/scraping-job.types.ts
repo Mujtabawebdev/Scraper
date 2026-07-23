@@ -1,6 +1,7 @@
 export type ScrapingJobQueueData = {
   scrapingJobId: string;
   sourceKey: ScrapingSourceKey;
+  source: ScrapingJobQueueSource;
   country: string;
   state?: string;
   city?: string;
@@ -13,12 +14,16 @@ export type ScrapingJobQueueData = {
 export type ScrapingJobQueueResult = {
   scrapingJobId: string;
   processedCount: number;
-  collectedCount: number;
-  failedCount: number;
-  skippedCount: number;
+  successCount: number;
+  failureCount: number;
+  duplicateCount: number;
   completedAt: string;
 };
 
 export type ScrapingJobName = "scrape-businesses";
 
 export type ScrapingSourceKey = "fixture-directory" | "permitted-http-directory";
+
+export type ScrapingJobQueueSource =
+  | "fixture-business-directory"
+  | "permitted-http-directory";

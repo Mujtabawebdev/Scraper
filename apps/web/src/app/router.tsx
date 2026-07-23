@@ -30,6 +30,33 @@ const DashboardPage = lazy(() =>
     default: module.DashboardPage,
   })),
 );
+const JobHistoryPage = lazy(() =>
+  import("../features/scraping-jobs/pages/job-history-page").then(
+    (module) => ({
+      default: module.JobHistoryPage,
+    }),
+  ),
+);
+const CreateJobPage = lazy(() =>
+  import("../features/scraping-jobs/pages/create-job-page").then((module) => ({
+    default: module.CreateJobPage,
+  })),
+);
+const JobDetailPage = lazy(() =>
+  import("../features/scraping-jobs/pages/job-detail-page").then((module) => ({
+    default: module.JobDetailPage,
+  })),
+);
+const LeadExplorerPage = lazy(() =>
+  import("../features/leads/pages/lead-explorer-page").then((module) => ({
+    default: module.LeadExplorerPage,
+  })),
+);
+const LeadDetailPage = lazy(() =>
+  import("../features/leads/pages/lead-detail-page").then((module) => ({
+    default: module.LeadDetailPage,
+  })),
+);
 const ComingSoonPage = lazy(() =>
   import("../pages/coming-soon-page").then((module) => ({
     default: module.ComingSoonPage,
@@ -82,21 +109,23 @@ export const router = createBrowserRouter([
           },
           {
             path: "jobs",
-            element: (
-              <ComingSoonPage
-                description="Scraping job creation and history will arrive in a later phase."
-                title="Jobs"
-              />
-            ),
+            element: <JobHistoryPage />,
+          },
+          {
+            path: "jobs/new",
+            element: <CreateJobPage />,
+          },
+          {
+            path: "jobs/:jobId",
+            element: <JobDetailPage />,
           },
           {
             path: "leads",
-            element: (
-              <ComingSoonPage
-                description="Lead browsing and management will arrive in a later phase."
-                title="Leads"
-              />
-            ),
+            element: <LeadExplorerPage />,
+          },
+          {
+            path: "leads/:leadId",
+            element: <LeadDetailPage />,
           },
           {
             path: "settings",

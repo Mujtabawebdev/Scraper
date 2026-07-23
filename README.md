@@ -12,9 +12,11 @@ A production-oriented SaaS for collecting and managing publicly available U.S. b
 ## Monorepo Applications
 
 - `apps/api`: Express REST API with authentication, leads, scraping jobs, health checks, and production middleware.
-- `apps/worker`: BullMQ worker for the permitted scraping proof of concept.
-- `apps/web`: React web application with authentication, protected routing, and the dashboard shell.
-- `packages/shared-types`: Shared queue and scraping-job TypeScript contracts.
+- `apps/worker`: BullMQ worker for permitted, user-owned scraping jobs.
+- `apps/web`: React application with authentication, job management, lead
+  exploration, and an owned dashboard.
+- `packages/shared-types`: Non-Prisma API DTOs plus internal typed queue
+  contracts.
 - `packages/validation`: Future shared validation schemas.
 - `packages/config`: Future shared configuration.
 
@@ -59,10 +61,10 @@ overrides are needed. Never commit real secrets.
 
 ## Frontend Application
 
-Phase 6 provides the React frontend foundation, registration and login pages,
-authentication bootstrap, protected and role-aware routes, logout controls, and
-a responsive dashboard shell. Scraping jobs, leads, and account settings remain
-clearly labelled placeholders for later phases.
+The Phase 6 authentication foundation now hosts Phase 7's job history,
+approved-source job form, live job detail, lead explorer, CSV export, and real
+user-specific dashboard summary. Account settings remain intentionally limited
+to the existing session actions.
 
 The frontend workspace uses:
 
@@ -129,9 +131,12 @@ architecture and security decisions.
 | `/` | Public | Redirect according to authentication state |
 | `/login` | Signed-out users | Password login |
 | `/register` | Signed-out users | Account registration |
-| `/dashboard` | Authenticated users | Welcome page and labelled analytics placeholders |
-| `/dashboard/jobs` | Authenticated users | Later-phase placeholder |
-| `/dashboard/leads` | Authenticated users | Later-phase placeholder |
+| `/dashboard` | Authenticated users | Real owned job and lead summary |
+| `/dashboard/jobs` | Authenticated users | Filtered, paginated job history |
+| `/dashboard/jobs/new` | Authenticated users | Approved-source job creation |
+| `/dashboard/jobs/:jobId` | Authenticated owner | Progress, statistics, cancel, and retry |
+| `/dashboard/leads` | Authenticated users | Server-filtered lead explorer and CSV export |
+| `/dashboard/leads/:leadId` | Authenticated owner | Safe business lead detail |
 | `/dashboard/settings` | Authenticated users | Account/session actions and later-phase placeholder |
 | `/unauthorized` | Public | Insufficient-role explanation |
 | `*` | Public | Not-found page |
@@ -150,9 +155,9 @@ npm run dev:web
 ```
 
 Open `http://localhost:5173` and verify registration, the dashboard redirect,
-page-reload restoration through the refresh cookie, logout, login, protected
-route redirects, duplicate registration, invalid credentials, and the mobile
-navigation. Local credentialed requests are allowed from
+page-reload restoration through the refresh cookie, job creation and polling,
+lead filtering/detail/export, cancellation/retry, logout, protected route
+redirects, and mobile navigation. Local credentialed requests are allowed from
 `http://localhost:5173` to `http://localhost:5000`; production must retain an
 explicit trusted origin and secure cookie settings.
 
@@ -303,29 +308,74 @@ development or production database. Use the suite's isolated test database
 configuration. Do not use `prisma db push`; authentication schema changes are
 tracked in the `add_auth_sessions` migration.
 
-## Permitted Fixture Scraping POC
+## Scraping Jobs And Lead Explorer
 
-With the API and worker running, enqueue a fixture job without making internet requests:
+All Phase 7 data endpoints require a bearer access token and scope repository
+queries to the authenticated user.
+
+| Method | Endpoint | Purpose |
+| --- | --- | --- |
+| `POST` | `/api/v1/scraping-jobs` | Validate and enqueue an approved-source job |
+| `GET` | `/api/v1/scraping-jobs` | Search, filter, sort, and paginate owned jobs |
+| `GET` | `/api/v1/scraping-jobs/:jobId` | Read owned progress and statistics |
+| `POST` | `/api/v1/scraping-jobs/:jobId/cancel` | Cancel an active owned job |
+| `POST` | `/api/v1/scraping-jobs/:jobId/retry` | Create a linked retry for an owned failed job |
+| `GET` | `/api/v1/leads` | Search, filter, sort, and paginate owned leads |
+| `GET` | `/api/v1/leads/:leadId` | Read an owned lead |
+| `GET` | `/api/v1/leads/export.csv` | Export the current owned lead filters |
+| `GET` | `/api/v1/dashboard/summary` | Read compact owned job/lead totals |
+
+With PostgreSQL, Redis, the API, and worker running, enqueue the fictional local
+fixture without making an internet request:
 
 ```powershell
 $body = @{
-  sourceKey = "fixture-directory"
-  country = "United States"
-  state = "Texas"
-  city = "Houston"
-  category = "Roofing"
-  searchQuery = "roofing contractors in Houston Texas"
-  requestedLimit = 20
+  source = "fixture-business-directory"
+  searchQuery = "plumbers"
+  location = "Austin, TX"
+  requestedLimit = 100
 } | ConvertTo-Json
 
-$created = Invoke-RestMethod -Method Post -Uri http://localhost:5000/api/v1/scraping-jobs/test -ContentType "application/json" -Body $body
-Invoke-RestMethod -Uri "http://localhost:5000/api/v1/scraping-jobs/$($created.data.scrapingJobId)"
-$leads = Invoke-RestMethod -Uri "http://localhost:5000/api/v1/leads?scrapingJobId=$($created.data.scrapingJobId)&page=1&limit=20"
+$created = Invoke-RestMethod `
+  -Method Post `
+  -Uri http://localhost:5000/api/v1/scraping-jobs `
+  -Headers $headers `
+  -ContentType "application/json" `
+  -Body $body
+
+$jobId = $created.data.job.id
+Invoke-RestMethod `
+  -Uri "http://localhost:5000/api/v1/scraping-jobs/$jobId" `
+  -Headers $headers
+
+$leads = Invoke-RestMethod `
+  -Uri "http://localhost:5000/api/v1/leads?jobId=$jobId&page=1&pageSize=25" `
+  -Headers $headers
 ```
 
-Jobs receive three attempts with exponential backoff starting at five seconds. Completed and failed jobs retain bounded history for local diagnostics. Stop local services with `docker compose down`; named volumes preserve PostgreSQL and Redis data. See `docs/queue.md` for architecture and consistency details.
+The UI uses TanStack Query polling only for `PENDING`, `QUEUED`, and `RUNNING`
+jobs. Cancellation is database-first and cooperative; retry creates a new
+linked row so the original failure remains auditable. Leads collected before a
+cancellation remain available. See `docs/job-management.md`.
 
-The POC accepts at most 100 records per job. `fixture-directory` uses fictional local HTML only. The controlled HTTP adapter remains disabled unless an administrator explicitly enables it and configures an approved base URL after reviewing source terms. Public visibility alone is not permission to scrape. The project never bypasses login systems, CAPTCHAs, robots policies, rate limits, or technical access controls. Detailed safeguards and normalization rules are in `docs/scraping.md`.
+Lead search, filters, allowlisted sorting, and pagination are performed by
+PostgreSQL, not by downloading the complete dataset. CSV export applies the
+same tenant/filter predicates, a synchronous row ceiling, safe quoting, and
+spreadsheet-formula injection protection. See `docs/lead-explorer.md`.
+
+Jobs retain BullMQ's three automatic attempts with exponential backoff starting
+at five seconds. Completed and failed queue history remains bounded for local
+diagnostics. Stop local services with `docker compose down`; named volumes
+preserve PostgreSQL and Redis data. See `docs/queue.md` for consistency details.
+
+The Phase 7 form accepts only the compiled, controlled source list and at most
+100 records. `fixture-business-directory` maps to fictional local HTML.
+`permitted-http-directory` remains disabled unless an administrator explicitly
+enables it and configures its fixed approved base URL after reviewing source
+terms; users can never submit a URL.
+Public visibility alone is not permission to scrape. The project never
+bypasses login systems, CAPTCHAs, robots policies, rate limits, or technical
+access controls. Detailed safeguards are in `docs/scraping.md`.
 
 ## Compliance Notice
 

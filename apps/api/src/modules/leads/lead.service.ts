@@ -1,34 +1,26 @@
-import type { Prisma } from "../../generated/prisma/client.js";
-import { prisma } from "../../infrastructure/database/prisma.js";
-import type { z } from "zod";
-import type { listLeadsQuerySchema } from "./lead.schemas.js";
+import { createPaginationMetadata } from "../scraping-jobs/scraping-job.mapper.js";
+import { leadNotFoundError } from "./lead.errors.js";
+import { mapLeadDetail, mapLeadSummary } from "./lead.mapper.js";
+import {
+  findOwnedLeadDetail,
+  listOwnedLeads,
+} from "./lead.repository.js";
+import type { ListLeadsQuery } from "./lead.types.js";
 
-type ListLeadsQuery = z.infer<typeof listLeadsQuerySchema>;
-
-export const listLeads = async (query: ListLeadsQuery) => {
-  const where: Prisma.LeadWhereInput = {
-    ...(query.scrapingJobId ? { scrapingJobId: query.scrapingJobId } : {}),
-    ...(query.city ? { city: { equals: query.city, mode: "insensitive" } } : {}),
-    ...(query.state ? { state: { equals: query.state, mode: "insensitive" } } : {}),
-    ...(query.category ? { category: { equals: query.category, mode: "insensitive" } } : {}),
-    ...(query.status ? { status: query.status } : {}),
-    ...(query.hasPhone === true ? { phoneNormalized: { not: null } } : {}),
-    ...(query.hasPhone === false ? { phoneNormalized: null } : {}),
-  };
-  const skip = (query.page - 1) * query.limit;
-  const [data, total] = await prisma.$transaction([
-    prisma.lead.findMany({ where, skip, take: query.limit, orderBy: { createdAt: "desc" } }),
-    prisma.lead.count({ where }),
-  ]);
+export const listLeads = async (userId: string, query: ListLeadsQuery) => {
+  const result = await listOwnedLeads(userId, query);
   return {
-    data,
-    pagination: {
-      page: query.page,
-      limit: query.limit,
-      total,
-      totalPages: Math.ceil(total / query.limit),
-    },
+    leads: result.leads.map(mapLeadSummary),
+    pagination: createPaginationMetadata(
+      query.page,
+      query.pageSize,
+      result.totalItems,
+    ),
   };
 };
 
-export const getLead = async (id: string) => prisma.lead.findUnique({ where: { id } });
+export const getLead = async (userId: string, leadId: string) => {
+  const lead = await findOwnedLeadDetail(leadId, userId);
+  if (!lead) throw leadNotFoundError();
+  return mapLeadDetail(lead);
+};

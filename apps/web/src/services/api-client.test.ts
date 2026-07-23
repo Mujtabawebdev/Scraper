@@ -418,4 +418,28 @@ describe("apiClient authentication recovery", () => {
     expect(refreshClient.calls).toHaveLength(1);
     expect(applicationClient.calls).toHaveLength(2);
   });
+
+  it("normalizes a JSON error returned as a blob for CSV downloads", async () => {
+    const blobError = {
+      isAxiosError: true,
+      response: {
+        data: new Blob([
+          JSON.stringify({
+            success: false,
+            message: "Unsafe backend export detail",
+            error: { code: "EXPORT_LIMIT_EXCEEDED" },
+          }),
+        ], { type: "application/json" }),
+        status: 413,
+      },
+    };
+
+    await expect(
+      apiClientModule.normalizeApiErrorAsync(blobError),
+    ).resolves.toMatchObject({
+      code: "EXPORT_LIMIT_EXCEEDED",
+      message: "This export is too large. Narrow the filters and try again.",
+      status: 413,
+    });
+  });
 });

@@ -24,13 +24,26 @@ Before HTML access, `/robots.txt` is fetched for the configured user agent and c
 
 ## Deduplication And Persistence
 
-In-batch and database checks use these priorities: source identity, domain plus business/city, phone plus business name, then business name plus address/postal code. A shared phone alone never rejects a different business. Redundant rows are skipped instead of persisted as `DUPLICATE` leads.
+In-batch and database checks use these priorities: source identity, domain plus
+business/city, phone plus business name, then business name plus address/postal
+code. Database checks are scoped to the authenticated job owner. A shared phone
+alone never rejects a different business, and one tenant's record cannot
+suppress another tenant's lead. Redundant rows are skipped instead of
+persisted as `DUPLICATE` leads.
 
-Accepted leads are saved as `NEW`, linked to the originating `ScrapingJob`, marked as public business contacts, and retain source type, name, URL, optional external ID, and collection timestamp. Writes are bounded per record rather than one unbounded transaction.
+Accepted leads are saved as `NEW`, store the same `userId` as the originating
+`ScrapingJob`, are marked as public business contacts, and retain source type,
+name, URL, optional external ID, and collection timestamp. Writes are bounded
+per record rather than one unbounded transaction.
 
 ## Status And Retry Behavior
 
-The BullMQ worker moves jobs through `QUEUED`, `RUNNING`, and `COMPLETED`, synchronizing progress and counters. Skipped invalid/duplicate records contribute to the current `failedCount` compatibility field and typed result `skippedCount`. BullMQ retains three-attempt exponential retry behavior; only final exhaustion marks the database job failed.
+The BullMQ worker moves jobs through `QUEUED`, `RUNNING`, and `COMPLETED`,
+synchronizing progress and distinct success, failure, and duplicate counters.
+It cooperatively stops when the owned database row becomes `CANCELLED`, and
+conditional terminal updates cannot overwrite cancellation. BullMQ retains
+three-attempt exponential retry behavior; only final exhaustion marks an
+active database job failed.
 
 ## Prohibited Sources And Techniques
 

@@ -85,6 +85,9 @@ describe("auth state storage and logout cleanup", () => {
       defaultOptions: { mutations: { retry: false } },
     });
     queryClient.setQueryData(authQueryKeys.currentUser(), user);
+    queryClient.setQueryData(["leads", "list"], { leads: ["tenant-a"] });
+    queryClient.setQueryData(["scraping-jobs", "list"], { jobs: ["tenant-a"] });
+    queryClient.setQueryData(["dashboard", "summary"], { totalJobs: 1 });
     mockedLogout.mockRejectedValue(new Error("Mocked network failure"));
 
     render(
@@ -105,6 +108,9 @@ describe("auth state storage and logout cleanup", () => {
     expect(store.getState().auth.accessToken).toBeNull();
     expect(store.getState().auth.user).toBeNull();
     expect(queryClient.getQueryData(authQueryKeys.currentUser())).toBeUndefined();
+    expect(queryClient.getQueryData(["leads", "list"])).toBeUndefined();
+    expect(queryClient.getQueryData(["scraping-jobs", "list"])).toBeUndefined();
+    expect(queryClient.getQueryData(["dashboard", "summary"])).toBeUndefined();
   });
 
   it("clears auth state and cached user data when logout-all fails", async () => {
@@ -113,6 +119,9 @@ describe("auth state storage and logout cleanup", () => {
       defaultOptions: { mutations: { retry: false } },
     });
     queryClient.setQueryData(authQueryKeys.currentUser(), user);
+    queryClient.setQueryData(["leads", "list"], { leads: ["tenant-a"] });
+    queryClient.setQueryData(["scraping-jobs", "list"], { jobs: ["tenant-a"] });
+    queryClient.setQueryData(["dashboard", "summary"], { totalJobs: 1 });
     mockedLogoutAll.mockRejectedValue(new Error("Mocked network failure"));
 
     render(
@@ -133,5 +142,8 @@ describe("auth state storage and logout cleanup", () => {
     expect(store.getState().auth.accessToken).toBeNull();
     expect(store.getState().auth.user).toBeNull();
     expect(queryClient.getQueryData(authQueryKeys.currentUser())).toBeUndefined();
+    expect(queryClient.getQueryData(["leads", "list"])).toBeUndefined();
+    expect(queryClient.getQueryData(["scraping-jobs", "list"])).toBeUndefined();
+    expect(queryClient.getQueryData(["dashboard", "summary"])).toBeUndefined();
   });
 });

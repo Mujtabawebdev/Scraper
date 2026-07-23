@@ -65,6 +65,7 @@ model User {
   updatedAt    DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
   lastLoginAt  DateTime?     @map("last_login_at") @db.Timestamptz(3)
   scrapingJobs ScrapingJob[]
+  leads        Lead[]
   auditLogs    AuditLog[]
   sessions     UserSession[]
 
@@ -93,31 +94,43 @@ model UserSession {
 }
 
 model ScrapingJob {
-  id             String    @id @default(uuid()) @db.Uuid
-  name           String    @db.VarChar(150)
-  country        String    @default("United States") @db.VarChar(100)
-  state          String?   @db.VarChar(100)
-  city           String?   @db.VarChar(120)
-  category       String?   @db.VarChar(150)
-  searchQuery    String?   @map("search_query") @db.VarChar(500)
-  requestedLimit Int       @map("requested_limit")
-  collectedCount Int       @default(0) @map("collected_count")
-  processedCount Int       @default(0) @map("processed_count")
-  failedCount    Int       @default(0) @map("failed_count")
-  progress       Int       @default(0)
-  status         JobStatus @default(PENDING)
-  startedAt      DateTime? @map("started_at") @db.Timestamptz(3)
-  completedAt    DateTime? @map("completed_at") @db.Timestamptz(3)
-  failureReason  String?   @map("failure_reason") @db.Text
-  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
-  createdById    String    @map("created_by_id") @db.Uuid
-  createdBy      User      @relation(fields: [createdById], references: [id], onDelete: Restrict)
-  leads          Lead[]
+  id                 String        @id @default(uuid()) @db.Uuid
+  name               String        @db.VarChar(150)
+  source             String        @default("fixture-business-directory") @db.VarChar(100)
+  country            String        @default("United States") @db.VarChar(100)
+  state              String?       @db.VarChar(100)
+  city               String?       @db.VarChar(120)
+  location           String        @default("United States") @db.VarChar(255)
+  category           String?       @db.VarChar(150)
+  searchQuery        String?       @map("search_query") @db.VarChar(500)
+  requestedLimit     Int           @map("requested_limit")
+  successCount       Int           @default(0) @map("collected_count")
+  processedCount     Int           @default(0) @map("processed_count")
+  failureCount       Int           @default(0) @map("failed_count")
+  duplicateCount     Int           @default(0) @map("duplicate_count")
+  progressPercentage Int           @default(0) @map("progress")
+  status             JobStatus     @default(PENDING)
+  startedAt          DateTime?     @map("started_at") @db.Timestamptz(3)
+  completedAt        DateTime?     @map("completed_at") @db.Timestamptz(3)
+  failedAt           DateTime?     @map("failed_at") @db.Timestamptz(3)
+  cancelledAt        DateTime?     @map("cancelled_at") @db.Timestamptz(3)
+  errorMessage       String?       @map("failure_reason") @db.Text
+  queueJobId         String?       @map("queue_job_id") @db.VarChar(255)
+  retryOfJobId       String?       @map("retry_of_job_id") @db.Uuid
+  createdAt          DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt          DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
+  userId             String        @map("user_id") @db.Uuid
+  user               User          @relation(fields: [userId], references: [id], onDelete: Restrict)
+  retryOfJob         ScrapingJob?  @relation("ScrapingJobRetries", fields: [retryOfJobId], references: [id], onDelete: SetNull)
+  retries            ScrapingJob[] @relation("ScrapingJobRetries")
+  leads              Lead[]
 
+  @@unique([id, userId])
   @@index([status])
-  @@index([createdById])
-  @@index([createdAt])
+  @@index([userId, createdAt])
+  @@index([userId, status, createdAt])
+  @@index([retryOfJobId])
+  @@index([queueJobId])
   @@map("scraping_jobs")
 }
 
@@ -147,8 +160,10 @@ model Lead {
   lastVerifiedAt          DateTime?   @map("last_verified_at") @db.Timestamptz(3)
   createdAt               DateTime    @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt               DateTime    @updatedAt @map("updated_at") @db.Timestamptz(3)
+  userId                  String      @map("user_id") @db.Uuid
   scrapingJobId           String      @map("scraping_job_id") @db.Uuid
-  scrapingJob             ScrapingJob @relation(fields: [scrapingJobId], references: [id], onDelete: Restrict)
+  user                    User        @relation(fields: [userId], references: [id], onDelete: Restrict)
+  scrapingJob             ScrapingJob @relation(fields: [scrapingJobId, userId], references: [id, userId], onDelete: Restrict)
 
   @@index([phoneNormalized])
   @@index([domain])
@@ -157,6 +172,8 @@ model Lead {
   @@index([category])
   @@index([status])
   @@index([sourceType])
+  @@index([userId, scrapingJobId])
+  @@index([userId, createdAt])
   @@index([scrapingJobId])
   @@index([collectedAt])
   @@index([sourceExternalId])

@@ -7,11 +7,14 @@ Phase 2 uses PostgreSQL 17 for local development and Prisma ORM 7 with the `pg` 
 ## Current Models
 
 - `User` stores account identity, the Argon2id password hash, role, lifecycle
-  status, last-login time, and relations to sessions, jobs, and audit events.
+  status, last-login time, and relations to sessions, jobs, leads, and audit
+  events.
 - `UserSession` stores rotating refresh-session state and only a SHA-256 digest
   of the complete refresh JWT.
-- `ScrapingJob` stores future collection requests, counters, status, and ownership.
-- `Lead` stores public business contact data and source traceability.
+- `ScrapingJob` stores approved-source requests, lifecycle timestamps, separate
+  processing counters, queue correlation, retry ancestry, and tenant ownership.
+- `Lead` stores public business contact data, direct tenant ownership,
+  originating-job ownership, and source traceability.
 - `AuditLog` records safe authentication, user, or system actions with optional
   JSONB metadata.
 
@@ -73,6 +76,16 @@ to a deterministic SHA-256 digest for database lookup and comparison.
 `phoneNormalized` is indexed but not globally unique because different business locations can legitimately share a phone number. `sourceUrl` can be long and `sourceExternalId` is nullable, so Phase 2 does not add a potentially brittle composite unique index. A later ingestion phase will normalize candidate identifiers, query indexed fields, and perform application-level transactional upserts.
 
 Every lead retains `sourceType`, `sourceName`, `sourceUrl`, optional external source ID, collection time, and originating job. This preserves provenance without implementing collection behavior.
+
+The `enhance_job_lead_management` migration renames the existing job ownership
+column without deleting data, adds the Phase 7 lifecycle fields, and backfills
+each existing lead's non-null `userId` from its originating job. Tenant-first
+job/lead indexes support ownership-scoped lists and summaries.
+
+The follow-up `enforce_job_lead_ownership` migration adds a composite
+`(jobId, userId)` foreign key. PostgreSQL therefore rejects a lead whose direct
+tenant owner does not match its originating job owner, even if application code
+is bypassed.
 
 ## Remaining Future Work
 

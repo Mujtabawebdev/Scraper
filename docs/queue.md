@@ -2,19 +2,35 @@
 
 ## Architecture
 
-The API is the BullMQ producer. It validates a mock request, creates a PostgreSQL `ScrapingJob`, and enqueues a typed `scrape-businesses` job. Redis persists BullMQ state in append-only mode. The separate `@lead-saas/worker` process consumes jobs and synchronizes progress and final status back to PostgreSQL.
+The API is the BullMQ producer. It validates an authenticated approved-source
+request, creates an owned PostgreSQL `ScrapingJob`, and enqueues a typed
+`scrape-businesses` job. Redis persists BullMQ state in append-only mode. The
+separate `@lead-saas/worker` process consumes jobs and synchronizes progress and
+final status back to PostgreSQL.
 
 The queue name defaults to `scraping-jobs` and the Redis key prefix defaults to `lead-saas`. The API and worker share compile-time payload/result contracts from `@lead-saas/shared-types`. The worker imports the single API-generated Prisma Client through the explicit `@lead-saas/api/prisma-client` package export, avoiding an independent schema or generated client.
 
 ## Job Contract
 
-The payload contains the database job UUID, geographic/category filters, search query, requested mock limit, and requesting system-user UUID. The result contains the job UUID, processed/collected/failed counters, and completion timestamp. Payloads are not logged in full.
+The payload contains the database job UUID, compiled adapter key, public source
+identifier, geographic/category filters, search query, bounded limit, and
+requesting user UUID. The worker verifies the owner against PostgreSQL. The
+result separates processed, successful, failed, and duplicate counters.
+Payloads are not logged in full or returned through the REST API.
 
 ## Lifecycle And Progress
 
-Database status flows through `PENDING`, `QUEUED`, `RUNNING`, then `COMPLETED` or final `FAILED`. The Phase-4 processor handles at most 100 permitted fixture records, updates BullMQ/database progress, and persists normalized non-duplicate leads.
+Database status flows through `PENDING`, `QUEUED`, `RUNNING`, then `COMPLETED`,
+terminal `FAILED`, or `CANCELLED`. The processor handles at most 100 permitted
+fixture records, updates bounded BullMQ/database progress, and persists
+normalized non-duplicate leads with the job owner.
 
-Jobs have three attempts and exponential backoff beginning at five seconds. A processing exception is rethrown so BullMQ controls retries. The database is marked `FAILED` only after the final attempt is exhausted. Completed jobs retain up to 500 records for one day; failed jobs retain up to 1,000 records for seven days.
+Jobs have three attempts and exponential backoff beginning at five seconds. A
+processing exception is rethrown so BullMQ controls retries. The database is
+marked `FAILED` only after the final attempt is exhausted. Completion/failure
+updates require the row to remain active, preventing cancellation from being
+overwritten. Manual retry creates a new linked job. Completed jobs retain up to
+500 records for one day; failed jobs retain up to 1,000 records for seven days.
 
 ## Local Operation
 
@@ -35,8 +51,15 @@ API shutdown closes its HTTP server, BullMQ queue, Redis health client, and Pris
 
 ## Consistency Boundary
 
-PostgreSQL record creation and Redis enqueue cannot be one atomic transaction. Phase 3 marks enqueue failures safely, but a process crash between database and Redis operations can still leave inconsistent state. A future production phase should use a transactional outbox and idempotent dispatcher.
+PostgreSQL record creation and Redis enqueue cannot be one atomic transaction.
+The producer uses conditional transitions to avoid regressing a fast worker and
+marks confirmed enqueue failures safely, but a process crash between database
+and Redis operations can still leave inconsistent state. A future production
+phase should use a transactional outbox and idempotent dispatcher.
 
 ## Current Limitation
 
-The default adapter reads fictional local fixture HTML and makes no external request. The controlled HTTP adapter is disabled by default and requires explicit administrator configuration. Authentication, proxying, CAPTCHA handling, and prohibited-platform extraction remain excluded.
+The default adapter reads fictional local fixture HTML and makes no external
+request. The controlled HTTP adapter is disabled by default and requires
+explicit administrator configuration. Proxying, CAPTCHA handling, and
+prohibited-platform extraction remain excluded.

@@ -6,8 +6,8 @@ import {
   clearAuth,
   setCredentials,
 } from "../features/auth/store/auth.slice";
-import { authQueryKeys } from "../features/auth/api/auth-query-keys";
 import { connectApiClientToAuth } from "../services/api-client";
+import { clearUserServerState } from "./clear-server-state";
 import { queryClient } from "./query-client";
 
 export const createAppStore = () =>
@@ -26,8 +26,7 @@ connectApiClientToAuth({
   },
   clearAuthentication: () => {
     store.dispatch(clearAuth());
-    void queryClient.cancelQueries({ queryKey: authQueryKeys.all });
-    queryClient.removeQueries({ queryKey: authQueryKeys.all });
+    clearUserServerState(queryClient);
   },
 });
 

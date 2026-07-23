@@ -19,6 +19,14 @@ export const apiErrorCodes = [
   "INSUFFICIENT_PERMISSIONS",
   "RATE_LIMIT_EXCEEDED",
   "AUTH_RATE_LIMIT_EXCEEDED",
+  "SCRAPING_JOB_NOT_FOUND",
+  "SCRAPING_JOB_NOT_CANCELLABLE",
+  "SCRAPING_JOB_NOT_RETRYABLE",
+  "APPROVED_SOURCE_REQUIRED",
+  "SOURCE_NOT_PERMITTED",
+  "QUEUE_UNAVAILABLE",
+  "LEAD_NOT_FOUND",
+  "EXPORT_LIMIT_EXCEEDED",
   "NETWORK_ERROR",
   "INTERNAL_SERVER_ERROR",
 ] as const;
@@ -84,6 +92,19 @@ const safeMessages: Readonly<Record<string, string>> = {
   INSUFFICIENT_PERMISSIONS: "You do not have permission to view this page.",
   RATE_LIMIT_EXCEEDED: "Too many attempts. Please wait and try again.",
   AUTH_RATE_LIMIT_EXCEEDED: "Too many attempts. Please wait and try again.",
+  SCRAPING_JOB_NOT_FOUND:
+    "This scraping job was not found or is no longer available.",
+  SCRAPING_JOB_NOT_CANCELLABLE:
+    "This job can no longer be cancelled because its state has changed.",
+  SCRAPING_JOB_NOT_RETRYABLE: "Only failed jobs can be retried.",
+  APPROVED_SOURCE_REQUIRED: "Select an approved scraping source.",
+  SOURCE_NOT_PERMITTED:
+    "This approved development source is not enabled on the server.",
+  QUEUE_UNAVAILABLE:
+    "The job queue is temporarily unavailable. Please try again shortly.",
+  LEAD_NOT_FOUND: "This lead was not found or is no longer available.",
+  EXPORT_LIMIT_EXCEEDED:
+    "This export is too large. Narrow the filters and try again.",
   NETWORK_ERROR: "Unable to reach the server. Check your connection and try again.",
   INTERNAL_SERVER_ERROR: fallbackErrorMessage,
 };
@@ -105,6 +126,24 @@ const readFieldErrors = (
   return Object.fromEntries(entries);
 };
 
+const normalizeApiEnvelope = (
+  payload: ApiErrorEnvelope | undefined,
+  status: number | null,
+): ApiClientError => {
+  const code =
+    typeof payload?.error?.code === "string"
+      ? payload.error.code
+      : status === null
+        ? "NETWORK_ERROR"
+        : "INTERNAL_SERVER_ERROR";
+
+  return new ApiClientError(safeMessages[code] ?? fallbackErrorMessage, {
+    status,
+    code,
+    fieldErrors: readFieldErrors(payload?.error?.issues),
+  });
+};
+
 export const normalizeApiError = (error: unknown): ApiClientError => {
   if (error instanceof ApiClientError) {
     return error;
@@ -113,25 +152,33 @@ export const normalizeApiError = (error: unknown): ApiClientError => {
   if (axios.isAxiosError<ApiErrorEnvelope>(error)) {
     const status = error.response?.status ?? null;
     const payload = error.response?.data;
-    const code =
-      typeof payload?.error?.code === "string"
-        ? payload.error.code
-        : status === null
-          ? "NETWORK_ERROR"
-          : "INTERNAL_SERVER_ERROR";
-    const safeMessage = safeMessages[code] ?? fallbackErrorMessage;
-
-    return new ApiClientError(safeMessage, {
-      status,
-      code,
-      fieldErrors: readFieldErrors(payload?.error?.issues),
-    });
+    return normalizeApiEnvelope(payload, status);
   }
 
   return new ApiClientError(fallbackErrorMessage, {
     status: null,
     code: "INTERNAL_SERVER_ERROR",
   });
+};
+
+export const normalizeApiErrorAsync = async (
+  error: unknown,
+): Promise<ApiClientError> => {
+  if (
+    axios.isAxiosError<Blob>(error) &&
+    typeof Blob !== "undefined" &&
+    error.response?.data instanceof Blob
+  ) {
+    try {
+      const text = await error.response.data.text();
+      const payload = JSON.parse(text) as ApiErrorEnvelope;
+      return normalizeApiEnvelope(payload, error.response.status);
+    } catch {
+      return normalizeApiEnvelope(undefined, error.response.status);
+    }
+  }
+
+  return normalizeApiError(error);
 };
 
 export const getApiErrorMessage = (error: unknown): string =>
@@ -248,6 +295,6 @@ apiClient.interceptors.response.use(
       }
     }
 
-    return await Promise.reject(normalizeApiError(error));
+    return await Promise.reject(await normalizeApiErrorAsync(error));
   },
 );

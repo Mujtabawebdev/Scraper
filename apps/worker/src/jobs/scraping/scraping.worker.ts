@@ -9,7 +9,10 @@ import { logger } from "../../common/logger/logger.js";
 import { env } from "../../config/env.js";
 import { prisma } from "../../infrastructure/database/prisma.js";
 import { workerRedis } from "../../infrastructure/redis/redis.connection.js";
-import { processScrapingJob } from "./scraping.processor.js";
+import {
+  getSafeScrapingFailureMessage,
+  processScrapingJob,
+} from "./scraping.processor.js";
 
 export const scrapingWorker = new Worker<
   ScrapingJobQueueData,
@@ -32,17 +35,28 @@ scrapingWorker.on("completed", (job) => {
 });
 scrapingWorker.on("failed", (job, error) => {
   const attempts = job?.opts.attempts ?? 1;
-  const finalAttempt = job ? job.attemptsMade >= attempts : true;
+  const finalAttempt =
+    job ? job.attemptsMade >= attempts || error.name === "UnrecoverableError" : true;
+  const queueIdentityMatches =
+    job !== undefined && job.id === job.data.scrapingJobId;
   logger.error(
-    { jobId: job?.id, finalAttempt, errorType: error.name },
+    { jobId: job?.id, finalAttempt, queueIdentityMatches, errorType: error.name },
     "Scraping job attempt failed",
   );
 
-  if (job && finalAttempt) {
+  if (job && finalAttempt && queueIdentityMatches) {
     void prisma.scrapingJob
-      .update({
-        where: { id: job.data.scrapingJobId },
-        data: { status: "FAILED", failureReason: "Mock job processing failed" },
+      .updateMany({
+        where: {
+          id: job.data.scrapingJobId,
+          userId: job.data.requestedById,
+          status: { in: ["PENDING", "QUEUED", "RUNNING"] },
+        },
+        data: {
+          status: "FAILED",
+          failedAt: new Date(),
+          errorMessage: getSafeScrapingFailureMessage(error),
+        },
       })
       .catch(() => logger.error({ jobId: job.id }, "Failed to synchronize final job failure"));
   }

@@ -1,8 +1,8 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
+import { clearUserServerState } from "../../../app/clear-server-state";
 import { useAppDispatch } from "../../../app/store";
 import { logout } from "../api/auth.api";
-import { authQueryKeys } from "../api/auth-query-keys";
 import { clearAuth } from "../store/auth.slice";
 
 export const useLogout = () => {
@@ -11,10 +11,9 @@ export const useLogout = () => {
 
   return useMutation({
     mutationFn: logout,
-    onSettled: async () => {
+    onSettled: () => {
       dispatch(clearAuth());
-      await queryClient.cancelQueries({ queryKey: authQueryKeys.all });
-      queryClient.removeQueries({ queryKey: authQueryKeys.all });
+      clearUserServerState(queryClient);
     },
   });
 };

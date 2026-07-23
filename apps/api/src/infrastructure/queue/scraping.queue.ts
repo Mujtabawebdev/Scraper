@@ -23,3 +23,10 @@ export const scrapingQueue = new Queue<
 
 export const enqueueScrapingJob = async (data: ScrapingJobQueueData) =>
   scrapingQueue.add(SCRAPING_JOB_NAME, data, { jobId: data.scrapingJobId });
+
+export const removeScrapingQueueJob = async (queueJobId: string): Promise<boolean> => {
+  const job = await scrapingQueue.getJob(queueJobId);
+  if (!job) return false;
+  await job.remove();
+  return true;
+};
