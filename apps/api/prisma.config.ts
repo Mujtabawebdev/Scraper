@@ -3,10 +3,9 @@ import { defineConfig, env } from "prisma/config";
 
 config({ path: new URL("../../.env", import.meta.url), quiet: true });
 
-const directDatabaseUrl = new URL(env("DIRECT_DATABASE_URL"));
-
-if (directDatabaseUrl.hostname === "localhost") {
-  directDatabaseUrl.hostname = "127.0.0.1";
+if (!process.env.DATABASE_URL) {
+  process.env.DATABASE_URL =
+    "postgresql://lead_user:lead_password@postgres:5432/us_business_leads?schema=public";
 }
 
 export default defineConfig({
@@ -16,6 +15,10 @@ export default defineConfig({
     seed: "tsx prisma/seed.ts",
   },
   datasource: {
-    url: directDatabaseUrl.toString(),
+    url: env("DATABASE_URL"),
   },
 });
+
+
+
+

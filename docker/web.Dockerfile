@@ -7,14 +7,11 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 COPY apps/web/package.json ./apps/web/
 COPY packages/shared-types/package.json ./packages/shared-types/
-COPY packages/validation/package.json ./packages/validation/
-COPY packages/config/package.json ./packages/config/
 
 # Install dependencies deterministically
 RUN npm ci
 
 # Copy application source code
-COPY tsconfig.json ./
 COPY packages ./packages
 COPY apps/web ./apps/web
 

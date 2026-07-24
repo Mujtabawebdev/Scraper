@@ -50,6 +50,7 @@
     "pg": "^8.22.0",
     "pino": "latest",
     "pino-http": "latest",
+    "prisma": "^7.9.0",
     "stripe": "^17.7.0",
     "zod": "latest"
   },
@@ -61,7 +62,6 @@
     "@types/node": "latest",
     "@types/pg": "^8.20.0",
     "@types/supertest": "^7.2.1",
-    "prisma": "^7.9.0",
     "supertest": "^7.2.2",
     "tsx": "latest",
     "typescript": "latest",
