@@ -9,7 +9,8 @@ export type AuthErrorCode =
   | "INVALID_ACCESS_TOKEN"
   | "INVALID_REFRESH_TOKEN"
   | "REFRESH_TOKEN_REUSE_DETECTED"
-  | "INSUFFICIENT_PERMISSIONS";
+  | "INSUFFICIENT_PERMISSIONS"
+  | "ACCOUNT_LOCKED";
 
 export class AuthError extends AppError {
   declare readonly code: AuthErrorCode;
@@ -50,3 +51,10 @@ export const refreshTokenReuseError = (): AuthError =>
 
 export const insufficientPermissionsError = (): AuthError =>
   new AuthError(403, "INSUFFICIENT_PERMISSIONS", "You do not have permission to perform this action");
+
+export const accountLockedError = (message?: string): AuthError =>
+  new AuthError(
+    429,
+    "ACCOUNT_LOCKED",
+    message ?? "Account is temporarily locked due to multiple failed login attempts. Please try again later.",
+  );

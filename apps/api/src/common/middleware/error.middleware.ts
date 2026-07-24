@@ -49,7 +49,11 @@ export const errorHandler: ErrorRequestHandler = (error, request, response, next
 
   logger.error(
     {
+      requestId: request.id,
+      correlationId: request.correlationId,
+      userId: request.auth?.userId,
       errorType: error instanceof Error ? error.name : "UnknownError",
+      errorMessage: error instanceof Error ? error.message : String(error),
       method: request.method,
       path: request.path,
     },

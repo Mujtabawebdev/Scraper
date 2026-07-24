@@ -5,12 +5,14 @@ import { authenticate } from "../../common/middleware/authenticate.middleware.js
 import { validateBody } from "../../common/middleware/validate.middleware.js";
 import { env } from "../../config/env.js";
 import {
+  listSessions,
   login,
   logout,
   logoutAll,
   me,
   refresh,
   register,
+  revokeSessionHandler,
 } from "./auth.controller.js";
 import {
   emptyAuthBodySchema,
@@ -60,3 +62,5 @@ authRouter.post("/refresh", refreshRateLimiter, validateBody(emptyAuthBodySchema
 authRouter.post("/logout", logout);
 authRouter.post("/logout-all", authenticate, logoutAll);
 authRouter.get("/me", authenticate, me);
+authRouter.get("/sessions", authenticate, listSessions);
+authRouter.delete("/sessions/:sessionId", authenticate, revokeSessionHandler);

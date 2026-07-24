@@ -175,6 +175,39 @@ export const revokeAllActiveSessions = async (userId: string): Promise<number> =
   return result.count;
 };
 
+export const findActiveSessionsForUser = async (userId: string) =>
+  prisma.userSession.findMany({
+    where: {
+      userId,
+      revokedAt: null,
+      expiresAt: { gt: new Date() },
+    },
+    select: {
+      id: true,
+      ipAddress: true,
+      userAgent: true,
+      createdAt: true,
+      lastUsedAt: true,
+      expiresAt: true,
+    },
+    orderBy: { createdAt: "desc" },
+  });
+
+export const revokeSessionById = async (userId: string, sessionId: string): Promise<boolean> => {
+  const result = await prisma.userSession.updateMany({
+    where: {
+      id: sessionId,
+      userId,
+      revokedAt: null,
+    },
+    data: {
+      revokedAt: new Date(),
+      lastUsedAt: new Date(),
+    },
+  });
+  return result.count > 0;
+};
+
 export const findActiveSessionUser = async (
   sessionId: string,
   userId: string,

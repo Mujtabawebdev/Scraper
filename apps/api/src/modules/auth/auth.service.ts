@@ -9,6 +9,7 @@ import {
 } from "./auth.constants.js";
 import {
   accountDisabledError,
+  accountLockedError,
   accountSuspendedError,
   emailAlreadyInUseError,
   invalidAccessTokenError,
@@ -17,8 +18,14 @@ import {
   refreshTokenReuseError,
 } from "./auth.errors.js";
 import {
+  isAccountLocked,
+  recordFailedLogin,
+  resetFailedLogins,
+} from "./account-lockout.service.js";
+import {
   createLoginSession,
   createRegisteredUserWithSession,
+  findActiveSessionsForUser,
   findCurrentUserById,
   findSessionForRefresh,
   findUserByEmail,
@@ -27,6 +34,7 @@ import {
   recordAuditEvent,
   revokeAllActiveSessions,
   revokeSession,
+  revokeSessionById,
   rotateSessionAtomically,
   type AuditEventInput,
 } from "./auth.repository.js";
@@ -127,13 +135,28 @@ export const loginUser = async (
   input: LoginInput,
   metadata: SessionMetadata,
 ): Promise<AuthenticationResult> => {
+  const lockStatus = isAccountLocked(input.email);
+  if (lockStatus.locked) {
+    throw accountLockedError();
+  }
+
   const user = await findUserByEmail(input.email);
   const isSystemAccount = input.email === SYSTEM_USER_EMAIL;
   const storedHash = user && !isSystemAccount ? user.passwordHash : NON_LOGIN_PASSWORD_HASH;
   const passwordMatches = await verifyPassword(storedHash, input.password);
 
   if (!user || !passwordMatches || isSystemAccount) {
+    const failureResult = recordFailedLogin(input.email);
     await auditLoginFailure(metadata, user?.id);
+    if (failureResult.locked) {
+      await auditSafely({
+        action: "ACCOUNT_LOCKED",
+        ...(user?.id ? { actorId: user.id } : {}),
+        metadata: { reason: "consecutive_failed_logins" },
+        ...metadata,
+      });
+      throw accountLockedError();
+    }
     throw invalidCredentialsError();
   }
 
@@ -143,6 +166,8 @@ export const loginUser = async (
     await auditLoginFailure(metadata, user.id, user.status.toLowerCase());
     throw error;
   }
+
+  resetFailedLogins(input.email);
 
   const session = await prepareSession(user.id, user.role, metadata);
   const updatedUser = await createLoginSession({
@@ -305,4 +330,35 @@ export const getCurrentUser = async (userId: string): Promise<CurrentUserRespons
     throw invalidAccessTokenError();
   }
   return user;
+};
+
+export const listUserSessions = async (userId: string, currentSessionId: string) => {
+  const sessions = await findActiveSessionsForUser(userId);
+  return sessions.map((session) => ({
+    id: session.id,
+    ipAddress: session.ipAddress,
+    userAgent: session.userAgent,
+    createdAt: session.createdAt,
+    lastUsedAt: session.lastUsedAt,
+    isCurrentSession: session.id === currentSessionId,
+  }));
+};
+
+export const revokeUserSession = async (
+  userId: string,
+  sessionIdToRevoke: string,
+  currentSessionId: string,
+  metadata: SessionMetadata,
+): Promise<boolean> => {
+  const success = await revokeSessionById(userId, sessionIdToRevoke);
+  if (success) {
+    await auditSafely({
+      action: "SESSION_REVOKED",
+      actorId: userId,
+      entityId: sessionIdToRevoke,
+      metadata: { currentSessionId },
+      ...metadata,
+    });
+  }
+  return success;
 };

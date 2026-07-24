@@ -412,3 +412,71 @@ access controls. Detailed safeguards are in `docs/scraping.md`.
 ## Compliance Notice
 
 This project processes only publicly available business information and uses legitimate and permitted sources. It must not bypass login systems, CAPTCHAs, or technical access restrictions. All collection and processing must respect source terms, rate limits, and applicable laws.
+
+## Phase 12 — Security Hardening, Monitoring & Observability
+
+### Security Headers
+
+All API responses include production-grade HTTP security headers configured via Helmet:
+
+- **Content-Security-Policy** — strict policy with `default-src 'self'`, `object-src 'none'`, `frame-ancestors 'none'`
+- **X-Frame-Options: DENY** — prevents clickjacking
+- **X-Content-Type-Options: nosniff** — prevents MIME sniffing attacks
+- **Strict-Transport-Security** — `max-age=31536000; includeSubDomains; preload`
+- **Referrer-Policy: strict-origin-when-cross-origin**
+- **Permissions-Policy** — disables camera, microphone, geolocation, payment, display-capture
+- **Cross-Origin-Opener-Policy / Cross-Origin-Resource-Policy** — `same-origin`
+
+See `docs/SECURITY.md` for full header documentation.
+
+### Request Context Tracing
+
+Every request automatically receives:
+- `X-Request-ID` — UUID generated at ingress, or forwarded from upstream proxy
+- `X-Correlation-ID` — propagated for distributed trace correlation
+
+Both values are echoed in response headers and injected into every Pino log line for the request lifecycle.
+
+### Rate Limiting
+
+- **Global**: 200 requests per 15 min per IP/user across all `/api/v1` routes
+- **Login**: 10 attempts per 15 min
+- **Register**: 5 attempts per 60 min
+- **Refresh**: 30 attempts per 15 min
+- **Resource limiters**: Per-user limits for job creation, exports, imports, and verification
+
+### Account Lockout
+
+After 5 consecutive failed login attempts within 15 minutes, the account is temporarily locked for 15 minutes. All lockout events are written to the audit log. Successful login resets the failure counter.
+
+### Session & Device Management
+
+Users can inspect and revoke their own active sessions:
+
+```
+GET  /api/v1/auth/sessions             — list all active sessions (IP, user-agent, created, last used)
+DELETE /api/v1/auth/sessions/:sessionId — revoke a specific session (forced logout)
+POST /api/v1/auth/logout-all            — revoke all sessions immediately
+```
+
+### Observability — Health Endpoints
+
+| Endpoint | Description |
+|---|---|
+| `GET /api/v1/health` | Overall service health with DB, Redis, and queue status |
+| `GET /api/v1/health/liveness` | Kubernetes liveness probe — fast 200 OK |
+| `GET /api/v1/health/readiness` | Kubernetes readiness probe — tests DB + Redis connectivity |
+| `GET /api/v1/health/metrics` | System and application metrics (JSON or Prometheus format) |
+
+Prometheus format: `GET /api/v1/health/metrics?format=prometheus`
+
+### Audit Logging
+
+Critical security events (login, failed login, account lockout, token reuse, logout, session revocation) are persisted to the `audit_logs` PostgreSQL table with actor, entity, IP address, user-agent, and structured metadata.
+
+### Sensitive Field Redaction
+
+The Pino logger automatically redacts `Authorization` headers, cookies, passwords, access tokens, refresh tokens, and password hashes in all log output.
+
+See `docs/SECURITY.md` and `docs/ENVIRONMENT.md` for the complete reference.
+

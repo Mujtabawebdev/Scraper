@@ -8,11 +8,13 @@ import {
 import { AuthError, authenticationRequiredError, invalidRefreshTokenError } from "./auth.errors.js";
 import {
   getCurrentUser,
+  listUserSessions,
   loginUser,
   logoutAllSessions,
   logoutSession,
   refreshAuthentication,
   registerUser,
+  revokeUserSession,
 } from "./auth.service.js";
 import type { LoginInput, RegisterInput, SessionMetadata } from "./auth.types.js";
 
@@ -119,5 +121,50 @@ export const me = async (request: Request, response: Response): Promise<void> =>
     success: true,
     message: "Current user fetched successfully",
     data: { user },
+  });
+};
+
+export const listSessions = async (request: Request, response: Response): Promise<void> => {
+  if (!request.auth) {
+    throw authenticationRequiredError();
+  }
+  const sessions = await listUserSessions(request.auth.userId, request.auth.sessionId);
+  response.status(200).json({
+    success: true,
+    message: "Active sessions retrieved successfully",
+    data: { sessions },
+  });
+};
+
+export const revokeSessionHandler = async (
+  request: Request<{ sessionId: string }>,
+  response: Response,
+): Promise<void> => {
+  if (!request.auth) {
+    throw authenticationRequiredError();
+  }
+  const { sessionId } = request.params;
+  const success = await revokeUserSession(
+    request.auth.userId,
+    sessionId,
+    request.auth.sessionId,
+    getSessionMetadata(request),
+  );
+  if (!success) {
+    response.status(404).json({
+      success: false,
+      message: "Session not found or already revoked",
+      error: { code: "SESSION_NOT_FOUND" },
+    });
+    return;
+  }
+
+  if (sessionId === request.auth.sessionId) {
+    clearRefreshCookie(response);
+  }
+
+  response.status(200).json({
+    success: true,
+    message: "Session revoked successfully",
   });
 };
