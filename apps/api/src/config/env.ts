@@ -184,6 +184,7 @@ const envSchema = z
     BILLING_SUCCESS_URL: z.url().default("http://localhost:5173/billing?checkout=success"),
     BILLING_CANCEL_URL: z.url().default("http://localhost:5173/billing?checkout=cancelled"),
     BILLING_PORTAL_RETURN_URL: z.url().default("http://localhost:5173/billing"),
+    METRICS_BEARER_TOKEN: optionalSecretSchema,
   })
   .superRefine((values, context) => {
     const accessDurationSeconds = durationToSeconds(values.JWT_ACCESS_EXPIRES_IN);
@@ -251,6 +252,14 @@ const envSchema = z
           code: "custom",
           path: ["AUTH_COOKIE_SECURE"],
           message: "Secure authentication cookies are required in production",
+        });
+      }
+
+      if (values.FRONTEND_URL.includes("localhost") || values.FRONTEND_URL.includes("*")) {
+        context.addIssue({
+          code: "custom",
+          path: ["FRONTEND_URL"],
+          message: "Localhost or wildcard FRONTEND_URL is not allowed in production",
         });
       }
 

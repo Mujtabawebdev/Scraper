@@ -1,0 +1,56 @@
+name: CI Quality Gate
+
+on:
+  pull_request:
+    branches:
+      - main
+      - develop
+  push:
+    branches:
+      - develop
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  quality-gate:
+    name: Build & Validate Quality Gate
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies with deterministic lockfile
+        run: npm ci
+
+      - name: Check Prisma schema formatting
+        run: npm run prisma:format --workspace=@lead-saas/api
+
+      - name: Validate Prisma schema
+        run: npm run prisma:validate --workspace=@lead-saas/api
+
+      - name: Generate Prisma client
+        run: npm run prisma:generate --workspace=@lead-saas/api
+
+      - name: Run TypeScript typecheck
+        run: npm run typecheck
+
+      - name: Run unit and integration tests
+        run: npm run test
+
+      - name: Build production bundles
+        run: npm run build
+
+      - name: Validate Docker Compose configuration
+        run: docker compose config

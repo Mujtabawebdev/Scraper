@@ -1,31 +1,37 @@
+name: us-business-lead-saas
+
 services:
   postgres:
     image: postgres:17-alpine
     container_name: lead-saas-postgres
     restart: unless-stopped
     environment:
-      POSTGRES_USER: lead_user
-      POSTGRES_PASSWORD: lead_password
-      POSTGRES_DB: us_business_leads
-    ports:
-      - "${POSTGRES_HOST_PORT:-5432}:5432"
+      POSTGRES_USER: ${POSTGRES_USER:-lead_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-lead_password}
+      POSTGRES_DB: ${POSTGRES_DB:-us_business_leads}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
       test:
         - CMD-SHELL
-        - pg_isready -U lead_user -d us_business_leads
+        - pg_isready -U ${POSTGRES_USER:-lead_user} -d ${POSTGRES_DB:-us_business_leads}
       interval: 10s
       timeout: 5s
       retries: 5
       start_period: 10s
+    networks:
+      - lead_saas_network
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
   redis:
     image: redis:8-alpine
     container_name: lead-saas-redis
     restart: unless-stopped
     command: redis-server --appendonly yes
-    ports:
-      - "${REDIS_HOST_PORT:-6379}:6379"
     volumes:
       - redis_data:/data
     healthcheck:
@@ -37,7 +43,121 @@ services:
       timeout: 5s
       retries: 5
       start_period: 5s
+    networks:
+      - lead_saas_network
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  migration:
+    build:
+      context: .
+      dockerfile: docker/api.Dockerfile
+    container_name: lead-saas-migration
+    command: npx prisma migrate deploy --schema apps/api/prisma/schema.prisma
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: ${DATABASE_URL:-postgresql://lead_user:lead_password@postgres:5432/us_business_leads?schema=public}
+      DIRECT_DATABASE_URL: ${DIRECT_DATABASE_URL:-postgresql://lead_user:lead_password@postgres:5432/us_business_leads?schema=public}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - lead_saas_network
+    restart: "no"
+
+  api:
+    build:
+      context: .
+      dockerfile: docker/api.Dockerfile
+    container_name: lead-saas-api
+    restart: unless-stopped
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      API_PORT: 5000
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost}
+      DATABASE_URL: ${DATABASE_URL:-postgresql://lead_user:lead_password@postgres:5432/us_business_leads?schema=public}
+      DIRECT_DATABASE_URL: ${DIRECT_DATABASE_URL:-postgresql://lead_user:lead_password@postgres:5432/us_business_leads?schema=public}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:-change_in_production_jwt_access_secret_32bytes_min}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-change_in_production_jwt_refresh_secret_32bytes_min}
+      AUTH_COOKIE_SECURE: ${AUTH_COOKIE_SECURE:-true}
+      AUTH_COOKIE_SAME_SITE: ${AUTH_COOKIE_SAME_SITE:-lax}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    depends_on:
+      migration:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"require('http').get('http://localhost:5000/api/v1/health/liveness', (r) => process.exit(r.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))\""]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    networks:
+      - lead_saas_network
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  worker:
+    build:
+      context: .
+      dockerfile: docker/worker.Dockerfile
+    container_name: lead-saas-worker
+    restart: unless-stopped
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      DATABASE_URL: ${DATABASE_URL:-postgresql://lead_user:lead_password@postgres:5432/us_business_leads?schema=public}
+      DIRECT_DATABASE_URL: ${DIRECT_DATABASE_URL:-postgresql://lead_user:lead_password@postgres:5432/us_business_leads?schema=public}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+      WORKER_CONCURRENCY: ${WORKER_CONCURRENCY:-2}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    depends_on:
+      migration:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    networks:
+      - lead_saas_network
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  nginx:
+    build:
+      context: .
+      dockerfile: docker/web.Dockerfile
+    container_name: lead-saas-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    depends_on:
+      api:
+        condition: service_healthy
+    networks:
+      - lead_saas_network
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
 volumes:
   postgres_data:
   redis_data:
+
+networks:
+  lead_saas_network:
+    driver: bridge
