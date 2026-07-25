@@ -17,9 +17,11 @@ const normalizedRequiredText = (label: string) =>
 
 export const createScrapingJobSchema = z
   .object({
-    source: z.enum(approvedSourceValues, {
-      error: "Select an approved scraping source",
-    }),
+    source: z
+      .enum(approvedSourceValues, {
+        error: "Select an approved scraping source",
+      })
+      .optional(),
     searchQuery: normalizedRequiredText("Search query"),
     location: normalizedRequiredText("Location"),
     requestedLimit: z

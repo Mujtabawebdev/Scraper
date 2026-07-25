@@ -21,7 +21,7 @@ export const scrapingJobStatuses = [
 export type ScrapingJobStatus = (typeof scrapingJobStatuses)[number];
 
 export type CreateScrapingJobRequest = {
-  source: ApprovedScrapingSource;
+  source?: ApprovedScrapingSource;
   searchQuery: string;
   location: string;
   requestedLimit: number;

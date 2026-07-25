@@ -27,7 +27,7 @@ const shutdown = async (reason: string, requestedExitCode = 0): Promise<void> =>
   }
 
   try {
-    if (server) {
+    if (server?.listening) {
       await new Promise<void>((resolve, reject) => {
         server?.close((error) => (error ? reject(error) : resolve()));
       });
@@ -68,6 +68,6 @@ server = app.listen(env.API_PORT, () => {
   logger.info({ port: env.API_PORT, environment: env.NODE_ENV }, "API server started");
 });
 server.on("error", (error) => {
-  logger.fatal({ errorType: error.name }, "API server failed to start");
+  logger.fatal({ err: error, port: env.API_PORT }, "API server failed to start");
   void shutdown("serverError", 1);
 });

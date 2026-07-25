@@ -1,9 +1,6 @@
 import type { ScrapeInput } from "../contracts/scrape-input.types.js";
 import type { AcquisitionStage } from "@lead-saas/shared-types";
-import { scraperRegistry } from "../registry/scraper.registry.js";
-import { deduplicateBatch } from "./lead-deduplication.service.js";
-import { normalizeBusiness } from "./lead-normalization.service.js";
-import { persistLeads } from "./lead-persistence.service.js";
+import { runMultiSourceOrchestration } from "./multi-source-orchestrator.js";
 
 export type ScrapingServiceResult = {
   processedCount: number;
@@ -112,80 +109,133 @@ export const runScraping = async (
     return cancelledResult(emptyCounts, 0);
   }
 
-  const scrapeResult = await scraperRegistry.get(input.sourceKey).scrape(input);
-  const processedCount = scrapeResult.records.length + scrapeResult.skippedRecords;
-  const scrapedCounts: ProgressCounts = {
-    processedCount,
-    successCount: 0,
-    failureCount: scrapeResult.skippedRecords,
-    duplicateCount: 0,
-  };
+  const result = await runMultiSourceOrchestration(input, control);
   if (await control.shouldCancel()) {
-    return cancelledResult(scrapedCounts, scrapeResult.pagesProcessed);
+    return cancelledResult(
+      {
+        processedCount: result.processedCount,
+        successCount: result.successCount,
+        failureCount: result.failureCount,
+        duplicateCount: result.duplicateCount,
+      },
+      result.pagesProcessed,
+    );
   }
   if (
     !(await publishStage(
       control,
       "EXTRACT_CONTACT_DATA",
       35,
-      scrapedCounts,
+      {
+        processedCount: result.processedCount,
+        successCount: result.successCount,
+        failureCount: result.failureCount,
+        duplicateCount: result.duplicateCount,
+      },
     ))
   ) {
-    return cancelledResult(scrapedCounts, scrapeResult.pagesProcessed);
+    return cancelledResult(
+      {
+        processedCount: result.processedCount,
+        successCount: result.successCount,
+        failureCount: result.failureCount,
+        duplicateCount: result.duplicateCount,
+      },
+      result.pagesProcessed,
+    );
   }
 
-  const normalizedRecords = scrapeResult.records.map(normalizeBusiness);
   if (
     !(await publishStage(
       control,
       "NORMALIZE_PHONE",
       48,
-      scrapedCounts,
+      {
+        processedCount: result.processedCount,
+        successCount: result.successCount,
+        failureCount: result.failureCount,
+        duplicateCount: result.duplicateCount,
+      },
     ))
   ) {
-    return cancelledResult(scrapedCounts, scrapeResult.pagesProcessed);
-  }
-  const validRecords = normalizedRecords.filter((record) => record !== null);
-  const invalidCount = normalizedRecords.length - validRecords.length;
-  const batch = deduplicateBatch(validRecords);
-  const preparedCounts: ProgressCounts = {
-    processedCount,
-    successCount: 0,
-    failureCount: invalidCount + scrapeResult.skippedRecords,
-    duplicateCount: batch.duplicates,
-  };
-  if (await control.shouldCancel()) {
-    return cancelledResult(preparedCounts, scrapeResult.pagesProcessed);
+    return cancelledResult(
+      {
+        processedCount: result.processedCount,
+        successCount: result.successCount,
+        failureCount: result.failureCount,
+        duplicateCount: result.duplicateCount,
+      },
+      result.pagesProcessed,
+    );
   }
   if (
     !(await publishStage(
       control,
       "VALIDATE_PHONE",
       58,
-      preparedCounts,
+      {
+        processedCount: result.processedCount,
+        successCount: result.successCount,
+        failureCount: result.failureCount,
+        duplicateCount: result.duplicateCount,
+      },
     ))
   ) {
-    return cancelledResult(preparedCounts, scrapeResult.pagesProcessed);
+    return cancelledResult(
+      {
+        processedCount: result.processedCount,
+        successCount: result.successCount,
+        failureCount: result.failureCount,
+        duplicateCount: result.duplicateCount,
+      },
+      result.pagesProcessed,
+    );
   }
   if (
     !(await publishStage(
       control,
       "DEDUPLICATE",
       68,
-      preparedCounts,
+      {
+        processedCount: result.processedCount,
+        successCount: result.successCount,
+        failureCount: result.failureCount,
+        duplicateCount: result.duplicateCount,
+      },
     ))
   ) {
-    return cancelledResult(preparedCounts, scrapeResult.pagesProcessed);
+    return cancelledResult(
+      {
+        processedCount: result.processedCount,
+        successCount: result.successCount,
+        failureCount: result.failureCount,
+        duplicateCount: result.duplicateCount,
+      },
+      result.pagesProcessed,
+    );
   }
   if (
     !(await publishStage(
       control,
       "SCORE_CONFIDENCE",
       76,
-      preparedCounts,
+      {
+        processedCount: result.processedCount,
+        successCount: result.successCount,
+        failureCount: result.failureCount,
+        duplicateCount: result.duplicateCount,
+      },
     ))
   ) {
-    return cancelledResult(preparedCounts, scrapeResult.pagesProcessed);
+    return cancelledResult(
+      {
+        processedCount: result.processedCount,
+        successCount: result.successCount,
+        failureCount: result.failureCount,
+        duplicateCount: result.duplicateCount,
+      },
+      result.pagesProcessed,
+    );
   }
 
   if (
@@ -193,43 +243,38 @@ export const runScraping = async (
       control,
       "PERSIST_LEAD",
       82,
-      preparedCounts,
+      {
+        processedCount: result.processedCount,
+        successCount: result.successCount,
+        failureCount: result.failureCount,
+        duplicateCount: result.duplicateCount,
+      },
     ))
   ) {
-    return cancelledResult(preparedCounts, scrapeResult.pagesProcessed);
+    return cancelledResult(
+      {
+        processedCount: result.processedCount,
+        successCount: result.successCount,
+        failureCount: result.failureCount,
+        duplicateCount: result.duplicateCount,
+      },
+      result.pagesProcessed,
+    );
   }
-  const persisted = await persistLeads(batch.unique, {
-    scrapingJobId: input.scrapingJobId,
-    userId: control.userId,
-    sourceKey: input.sourceKey,
-    shouldCancel: control.shouldCancel,
-    onProgress: async (persistenceProgress) => {
-      const progress =
-        persistenceProgress.total === 0
-          ? 90
-          : 82 + Math.round((persistenceProgress.completed / persistenceProgress.total) * 15);
-      return publishProgress(control, Math.min(progress, 90), {
-        processedCount,
-        successCount: persistenceProgress.successCount,
-        failureCount: preparedCounts.failureCount,
-        duplicateCount: batch.duplicates + persistenceProgress.duplicateCount,
-      });
-    },
-  });
 
   await publishStage(control, "COMPLETE_JOB", 99, {
-    processedCount,
-    successCount: persisted.successCount,
-    failureCount: preparedCounts.failureCount,
-    duplicateCount: batch.duplicates + persisted.duplicateCount,
+    processedCount: result.processedCount,
+    successCount: result.successCount,
+    failureCount: result.failureCount,
+    duplicateCount: result.duplicateCount,
   });
 
   return {
-    processedCount,
-    successCount: persisted.successCount,
-    failureCount: preparedCounts.failureCount,
-    duplicateCount: batch.duplicates + persisted.duplicateCount,
-    pagesProcessed: scrapeResult.pagesProcessed,
-    cancelled: persisted.cancelled,
+    processedCount: result.processedCount,
+    successCount: result.successCount,
+    failureCount: result.failureCount,
+    duplicateCount: result.duplicateCount,
+    pagesProcessed: result.pagesProcessed,
+    cancelled: result.cancelled,
   };
 };

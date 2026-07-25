@@ -94,6 +94,27 @@ const assertSourceIsEnabled = async (
   }
 };
 
+const findEligibleSources = async (): Promise<ScrapingJobQueueSource[]> => {
+  const orderedSources: ScrapingJobQueueSource[] = [
+    "google-places-api",
+    "government-dataset",
+    "meta-approved-api",
+    "yelp-approved-api",
+    "permitted-http-directory",
+  ];
+
+  const eligibleSources: ScrapingJobQueueSource[] = [];
+  for (const source of orderedSources) {
+    try {
+      await assertSourceIsEnabled(source);
+      eligibleSources.push(source);
+    } catch {
+      // Ignore disabled, missing-credential, or review-required sources.
+    }
+  }
+  return eligibleSources;
+};
+
 const parseQueueLocation = (location: string): QueueLocation => {
   const parts = location
     .split(",")
@@ -111,13 +132,22 @@ const parseQueueLocation = (location: string): QueueLocation => {
 const enqueueNewScrapingJob = async (
   data: NewScrapingJobData,
 ): Promise<{ job: ScrapingJobSummary; queueJobId: string }> => {
-  await assertSourceIsEnabled(data.source);
+  if (data.source) {
+    await assertSourceIsEnabled(data.source);
+  } else {
+    const eligibleSources = await findEligibleSources();
+    if (eligibleSources.length === 0) {
+      throw sourceNotPermittedError();
+    }
+  }
+
+  const source = data.source ?? (await findEligibleSources())[0];
   const recentCount = await countRecentOwnedJobsBySource(
     data.userId,
-    data.source,
+    source,
     new Date(Date.now() - 60 * 60 * 1_000),
   );
-  const sourceHourlyLimit = data.source === "google-places-api" ? 5 : 10;
+  const sourceHourlyLimit = source === "google-places-api" ? 5 : 10;
   if (recentCount >= sourceHourlyLimit) throw sourceRateLimitedError();
 
   // Entitlement Quota Checks
@@ -142,12 +172,13 @@ const enqueueNewScrapingJob = async (
   // database remains authoritative if a queue payload is delayed or retried.
   const databaseJob = await createScrapingJobRecord({
     ...data,
+    source,
     ...queueLocation,
   });
   const queueData: ScrapingJobQueueData = {
     scrapingJobId: databaseJob.id,
-    sourceKey: sourceKeyByPublicSource[data.source],
-    source: data.source,
+    sourceKey: sourceKeyByPublicSource[source],
+    source,
     country: data.country ?? "United States",
     searchQuery: data.searchQuery,
     requestedLimit: data.requestedLimit,
@@ -233,7 +264,14 @@ const enqueueNewScrapingJob = async (
 export const createScrapingJob = async (
   userId: string,
   input: CreateScrapingJobInput,
-) => enqueueNewScrapingJob({ ...input, userId });
+) => {
+  const source = input.source ?? "google-places-api";
+  return enqueueNewScrapingJob({
+    ...input,
+    source,
+    userId,
+  } as NewScrapingJobData);
+};
 
 export const createAndEnqueueTestJob = async (
   userId: string,

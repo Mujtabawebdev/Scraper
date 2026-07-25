@@ -9,8 +9,12 @@ vi.mock("../../common/logger/logger.js", () => ({
 
 vi.mock("../../config/env.js", () => ({
   env: {
-    SCRAPING_EXTERNAL_SOURCE_ENABLED: false,
-    SCRAPING_APPROVED_BASE_URL: undefined,
+    SCRAPING_EXTERNAL_SOURCE_ENABLED: true,
+    SCRAPING_APPROVED_BASE_URL: "https://approved.example",
+    GOOGLE_PLACES_API_KEY: "google-key",
+    GOVERNMENT_DATASET_URL: "https://government.example",
+    META_APPROVED_API_ACCESS_TOKEN: "meta-token",
+    YELP_APPROVED_API_KEY: "yelp-key",
   },
 }));
 
@@ -64,12 +68,14 @@ import {
   type ScrapingJobRetrySourceRecord,
   type ScrapingJobSummaryRecord,
 } from "./scraping-job.repository.js";
+import { sourceNotPermittedError } from "./scraping-job.errors.js";
 import {
   cancelScrapingJob,
   createScrapingJob,
   getScrapingJob,
   retryScrapingJob,
 } from "./scraping-job.service.js";
+import { assertAutomatedAccessAllowed } from "../admin/source-policy.service.js";
 
 const createdAt = new Date("2026-07-23T12:00:00.000Z");
 
@@ -183,6 +189,10 @@ describe("scraping job service", () => {
   });
 
   it("rejects a disabled approved development source before persisting a job", async () => {
+    vi.mocked(assertAutomatedAccessAllowed).mockRejectedValueOnce(
+      sourceNotPermittedError(),
+    );
+
     await expect(
       createScrapingJob("user-1", {
         ...input,

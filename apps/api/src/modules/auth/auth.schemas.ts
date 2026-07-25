@@ -1,13 +1,13 @@
 import { z } from "zod";
 
-const normalizedEmailSchema = z
+export const normalizedEmailSchema = z
   .string()
   .trim()
   .max(320)
   .transform((value) => value.toLowerCase())
   .pipe(z.email("A valid email address is required"));
 
-const normalizedFullNameSchema = z
+export const normalizedFullNameSchema = z
   .string()
   .transform((value) => value.trim().replace(/\s+/g, " "))
   .pipe(
@@ -17,7 +17,7 @@ const normalizedFullNameSchema = z
       .max(100, "Full name must contain at most 100 characters"),
   );
 
-const strongPasswordSchema = z
+export const strongPasswordSchema = z
   .string()
   .min(8, "Password must contain at least 8 characters")
   .max(128, "Password must contain at most 128 characters")

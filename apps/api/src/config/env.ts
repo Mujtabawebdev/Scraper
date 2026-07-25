@@ -1,6 +1,8 @@
 import { config } from "dotenv";
 import { z } from "zod";
 
+import { normalizedEmailSchema, normalizedFullNameSchema, strongPasswordSchema } from "../modules/auth/auth.schemas.js";
+
 config({ path: new URL("../../../../.env", import.meta.url), quiet: true });
 
 const jwtDurationSchema = z
@@ -35,6 +37,21 @@ const optionalSecretSchema = z.preprocess(
   (value) =>
     typeof value === "string" && value.trim() === "" ? undefined : value,
   z.string().trim().min(1).optional(),
+);
+
+const bootstrapAdminEmailSchema = z.preprocess(
+  (value) => (typeof value === "string" ? value.trim() : value),
+  z.union([z.literal(""), normalizedEmailSchema]),
+);
+
+const bootstrapAdminPasswordSchema = z.preprocess(
+  (value) => (typeof value === "string" ? value.trim() : value),
+  z.union([z.literal(""), strongPasswordSchema]),
+);
+
+const bootstrapAdminFullNameSchema = z.preprocess(
+  (value) => (typeof value === "string" ? value.trim() : value),
+  z.union([z.literal(""), normalizedFullNameSchema]),
 );
 
 const optionalUrlSchema = z.preprocess(
@@ -173,6 +190,10 @@ const envSchema = z
     AUTH_REGISTER_RATE_LIMIT_MAX: rateLimitMaximumSchema.default(5),
     AUTH_REFRESH_RATE_LIMIT_WINDOW_MS: rateLimitWindowSchema.default(900_000),
     AUTH_REFRESH_RATE_LIMIT_MAX: rateLimitMaximumSchema.default(30),
+    BOOTSTRAP_ADMIN_ENABLED: z.stringbool().default(false),
+    BOOTSTRAP_ADMIN_EMAIL: bootstrapAdminEmailSchema.default(""),
+    BOOTSTRAP_ADMIN_PASSWORD: bootstrapAdminPasswordSchema.default(""),
+    BOOTSTRAP_ADMIN_FULL_NAME: bootstrapAdminFullNameSchema.default("Local Super Admin"),
     BILLING_PROVIDER: z.enum(["STRIPE", "MANUAL", "NONE"]).default("NONE"),
     STRIPE_SECRET_KEY: optionalSecretSchema,
     STRIPE_WEBHOOK_SECRET: optionalSecretSchema,
@@ -246,7 +267,49 @@ const envSchema = z
       });
     }
 
+    if (values.BOOTSTRAP_ADMIN_ENABLED) {
+      if (values.NODE_ENV !== "development" && values.NODE_ENV !== "test") {
+        context.addIssue({
+          code: "custom",
+          path: ["BOOTSTRAP_ADMIN_ENABLED"],
+          message: "Bootstrap admin is only supported in development",
+        });
+      }
+
+      if (!values.BOOTSTRAP_ADMIN_EMAIL) {
+        context.addIssue({
+          code: "custom",
+          path: ["BOOTSTRAP_ADMIN_EMAIL"],
+          message: "Bootstrap admin email is required when enabled",
+        });
+      }
+
+      if (!values.BOOTSTRAP_ADMIN_FULL_NAME) {
+        context.addIssue({
+          code: "custom",
+          path: ["BOOTSTRAP_ADMIN_FULL_NAME"],
+          message: "Bootstrap admin full name is required when enabled",
+        });
+      }
+
+      if (!values.BOOTSTRAP_ADMIN_PASSWORD) {
+        context.addIssue({
+          code: "custom",
+          path: ["BOOTSTRAP_ADMIN_PASSWORD"],
+          message: "Bootstrap admin password is required when enabled",
+        });
+      }
+    }
+
     if (values.NODE_ENV === "production") {
+      if (values.BOOTSTRAP_ADMIN_ENABLED) {
+        context.addIssue({
+          code: "custom",
+          path: ["BOOTSTRAP_ADMIN_ENABLED"],
+          message: "Bootstrap admin is not allowed in production",
+        });
+      }
+
       if (!values.AUTH_COOKIE_SECURE) {
         context.addIssue({
           code: "custom",

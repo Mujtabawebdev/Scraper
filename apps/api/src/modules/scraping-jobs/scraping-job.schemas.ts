@@ -34,7 +34,7 @@ const createdToSchema = dateQuerySchema.transform((value) =>
 
 export const createScrapingJobSchema = z
   .object({
-    source: z.enum(approvedScrapingSources),
+    source: z.enum(approvedScrapingSources).optional(),
     searchQuery: z.string().trim().min(2).max(100),
     location: z.string().trim().min(2).max(100),
     requestedLimit: z.number().int().min(1).max(100),

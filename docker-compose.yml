@@ -30,6 +30,8 @@ services:
   redis:
     image: redis:8-alpine
     container_name: lead-saas-redis
+    ports:
+      - "6379:6379"
     restart: unless-stopped
     command: redis-server --appendonly yes
     volumes:

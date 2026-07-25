@@ -43,6 +43,7 @@ export function CreateJobPage() {
   const createMutation = useCreateScrapingJob();
   const sourcesQuery = useAvailableSources();
   const [generalError, setGeneralError] = useState<string | null>(null);
+  const [useAllEligibleSources, setUseAllEligibleSources] = useState(true);
   const {
     formState: { errors, isSubmitting },
     handleSubmit,
@@ -78,15 +79,8 @@ export function CreateJobPage() {
   );
 
   useEffect(() => {
-    if (
-      availableSources.length > 0 &&
-      !availableSources.some((source) => source.key === sourceValue)
-    ) {
-      setValue(
-        "source",
-        availableSources[0]!.key as CreateScrapingJobFormValues["source"],
-        { shouldValidate: true },
-      );
+    if (availableSources.length > 0 && !sourceValue) {
+      setValue("source", undefined as never, { shouldValidate: true });
     }
   }, [availableSources, setValue, sourceValue]);
   const isPending = isSubmitting || createMutation.isPending;
@@ -96,7 +90,11 @@ export function CreateJobPage() {
   ): Promise<void> => {
     setGeneralError(null);
     try {
-      const job = await createMutation.mutateAsync(values);
+      const payload = {
+        ...values,
+        ...(useAllEligibleSources ? {} : { source: values.source }),
+      } as typeof values & { source?: ApprovedScrapingSource };
+      const job = await createMutation.mutateAsync(payload);
       toast.success("Scraping job queued successfully.");
       navigate(`/dashboard/jobs/${job.id}`);
     } catch (error: unknown) {
@@ -169,25 +167,46 @@ export function CreateJobPage() {
             onSubmit={handleSubmit(onSubmit)}
           >
             <div>
-              <Label htmlFor="job-source">Approved source</Label>
-              <Select
-                {...register("source")}
-                aria-describedby={errors.source ? "job-source-error" : undefined}
-                className="mt-1.5"
-                disabled={isPending}
-                id="job-source"
-                invalid={Boolean(errors.source)}
-              >
-                {realSources.map((source) => (
-                  <option
-                    disabled={!source.canCreateJob}
-                    key={source.key}
-                    value={source.key}
+              <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-3">
+                <input
+                  checked={useAllEligibleSources}
+                  id="use-all-eligible-sources"
+                  onChange={(event) => {
+                    const checked = event.target.checked;
+                    setUseAllEligibleSources(checked);
+                    if (checked) {
+                      setValue("source", undefined as never, { shouldValidate: true });
+                    }
+                  }}
+                  type="checkbox"
+                />
+                <Label className="cursor-pointer" htmlFor="use-all-eligible-sources">
+                  Automatic — use all eligible sources
+                </Label>
+              </div>
+              {!useAllEligibleSources ? (
+                <div className="mt-3">
+                  <Label htmlFor="job-source">Approved source</Label>
+                  <Select
+                    {...register("source")}
+                    aria-describedby={errors.source ? "job-source-error" : undefined}
+                    className="mt-1.5"
+                    disabled={isPending}
+                    id="job-source"
+                    invalid={Boolean(errors.source)}
                   >
-                    {source.displayName} · {source.state.replaceAll("_", " ")}
-                  </option>
-                ))}
-              </Select>
+                    {realSources.map((source) => (
+                      <option
+                        disabled={!source.canCreateJob}
+                        key={source.key}
+                        value={source.key}
+                      >
+                        {source.displayName} · {source.state.replaceAll("_", " ")}
+                      </option>
+                    ))}
+                  </Select>
+                </div>
+              ) : null}
               {sourcesQuery.isLoading ? (
                 <p className="mt-1.5 text-xs text-slate-500">
                   Loading real source availability…
